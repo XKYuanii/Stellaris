@@ -1,0 +1,94 @@
+groups:
+  - name: stellaris-order-reliability
+    rules:
+      - alert: StellarisOrderStreamPendingBacklog
+        expr: max by (application) (stellaris_order_stream_pending) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "创建订单 Redis Stream PEL 持续积压"
+          description: "Redis Stream 消费组待确认消息已连续 10 分钟大于 0，请检查 Kafka 与中继。"
+
+      - alert: StellarisOrderStreamDead
+        expr: max by (application) (stellaris_order_stream_dead) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "创建订单 Redis Stream 事件进入死信流"
+          description: "存在达到最大投递次数的 Stream 事件，需要修复下游后按原 eventId 重放。"
+
+      - alert: StellarisOrderStreamRelayError
+        expr: sum by (application) (increase(stellaris_order_stream_relay_total{result=~"failed|invalid_event|ack_executor_rejected"}[5m])) > 0 or sum by (application) (increase(stellaris_order_stream_recovery_total{result=~"failed|record_failed"}[5m])) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "创建订单事件中继执行失败"
+          description: "最近 5 分钟 Redis Stream 到 Kafka 的实时发送、ACK 执行或独立 PEL 恢复出现异常。"
+
+      - alert: StellarisOrderStreamAckMissed
+        expr: sum by (application) (increase(stellaris_order_stream_relay_total{result="xack_missed"}[5m])) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "Kafka 已确认但 Redis Stream XACK 未命中"
+          description: "消息可能从 PEL 重投；订单幂等应吸收重复，请同时检查 Redis 连接与重复消费指标。"
+
+      - alert: StellarisOrderCreateMessageInDLT
+        expr: sum by (application) (increase(stellaris_order_create_dlt_total[5m])) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "创建订单消息进入死信主题"
+          description: "创建订单消费经过有限重试后仍失败，消息已写入 .DLT。"
+
+      - alert: StellarisInventoryReconciliationFailed
+        expr: sum by (application) (increase(stellaris_inventory_reconciliation_total{result=~"failed|query_failed|scheduler_failed"}[10m])) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "库存对账执行失败"
+          description: "最近 10 分钟库存对账查询、单节目处理或调度发生异常。"
+
+      - alert: StellarisInventoryReconciliationNotRunning
+        expr: sum by (application) (increase(stellaris_inventory_reconciliation_runs_total[10m])) < 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "库存对账调度未运行"
+          description: "按三分钟周期配置，最近 10 分钟没有观察到任何执行记录。"
+
+      - alert: StellarisInventoryReconciliationWaitingOrder
+        expr: sum by (application) (increase(stellaris_inventory_reconciliation_total{result="waiting_order"}[15m])) > 3
+        labels:
+          severity: warning
+        annotations:
+          summary: "库存对账长期等待订单事实"
+          description: "可靠事件或订单消费可能阻塞，请联查事件积压和 DLT。"
+
+      - alert: StellarisReferenceReconciliationNotRunning
+        expr: time() - max by (application) (stellaris_reference_reconciliation_last_success_epoch_seconds) > 600
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "v5 三层对账长时间没有成功"
+          description: "最近成功时间已超过 10 分钟，请检查调度、数据库和远程事实查询。"
+
+      - alert: StellarisReferenceReconciliationFindings
+        expr: sum by (application) (increase(stellaris_reference_reconciliation_findings_total[10m])) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "v5 三层对账发现异常"
+          description: "事件、订单、支付或 Redis 座位不变量出现新的对账发现。"
+
+      - alert: StellarisReservationTransitionDead
+        expr: sum by (application) (increase(stellaris_reservation_transition_total{result="dead"}[10m])) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "支付/取消座位迁移进入人工处理"
+          description: "可靠迁移命令已达到最大自动尝试次数，需要检查节目服务后重放。"

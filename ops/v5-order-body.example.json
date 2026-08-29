@@ -1,0 +1,16 @@
+{
+  "requestId": "{{REQUEST_ID}}",
+  "programId": 1,
+  "userId": 1,
+  "ticketUserIdList": [1],
+  "seatDtoList": [
+    {
+      "id": 1,
+      "ticketCategoryId": 1,
+      "rowCode": 1,
+      "colCode": 1,
+      "seatType": 1,
+      "price": 100.00
+    }
+  ]
+}

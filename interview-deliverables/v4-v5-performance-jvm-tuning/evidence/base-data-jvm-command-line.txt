@@ -1,0 +1,6 @@
+19204:
+VM Arguments:
+jvm_args: -Xms256m -Xmx512m -XX:MaxMetaspaceSize=384m -XX:+UseG1GC -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=G:\study\Computer\java\damai_pro\tests\benchmark\results\runtime-v4-v5 -Xlog:gc*,safepoint:file=G:/study/Computer/java/damai_pro/tests/benchmark/results/runtime-v4-v5/base-data-gc.log:time,uptime,level,tags:filecount=5,filesize=20M -Dfile.encoding=UTF-8 -Dspring.output.ansi.enabled=never 
+java_command: G:\study\Computer\java\damai_pro\damai-server\damai-base-data-service\target\damai-base-data-service-0.0.1-SNAPSHOT.jar --logging.level.root=WARN --logging.level.com.damai=WARN --spring.main.banner-mode=off
+java_class_path (initial): G:\study\Computer\java\damai_pro\damai-server\damai-base-data-service\target\damai-base-data-service-0.0.1-SNAPSHOT.jar
+Launcher Type: SUN_STANDARD

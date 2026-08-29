@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.stellaris</groupId>
+        <artifactId>stellaris-platform</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+
+    <artifactId>stellaris-server</artifactId>
+    <packaging>pom</packaging>
+
+    <name>server</name>
+    <description>服务模块</description>
+
+    <modules>
+        <module>stellaris-order-service</module>
+        <module>stellaris-migrate-service</module>
+        <module>stellaris-gateway-service</module>
+        <module>stellaris-base-data-service</module>
+        <module>stellaris-user-service</module>
+        <module>stellaris-admin-service</module>
+        <module>stellaris-customize-service</module>
+        <module>stellaris-program-service</module>
+        <module>stellaris-pay-service</module>
+        <module>stellaris-mybatis-plus-service</module>
+    </modules>
+</project>

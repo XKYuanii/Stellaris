@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.stellaris</groupId>
+        <artifactId>stellaris-platform</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+
+    <artifactId>stellaris-captcha-manage-framework</artifactId>
+    <name>stellaris-captcha-manage-framework</name>
+    <description>stellaris-captcha-manage-framework</description>
+    <packaging>pom</packaging>
+
+    <modules>
+        <module>stellaris-base-captcha</module>
+        <module>stellaris-captcha-framework</module>
+    </modules>    
+</project>

@@ -1,0 +1,2 @@
+com.stellaris.initialize.config.InitializeAutoConfig
+com.stellaris.initialize.impl.composite.CompositeAutoConfiguration

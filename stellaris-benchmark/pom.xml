@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.stellaris</groupId>
+        <artifactId>stellaris-platform</artifactId>
+        <version>${revision}</version>
+    </parent>
+    <artifactId>stellaris-benchmark</artifactId>
+    <name>stellaris-benchmark</name>
+    <description>高并发票务锁座基准实验定义；不参与线上服务部署。</description>
+</project>

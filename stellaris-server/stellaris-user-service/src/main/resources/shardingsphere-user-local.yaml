@@ -1,0 +1,179 @@
+dataSources:
+  # 第一个用户库
+  ds_0:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    driverClassName: com.mysql.cj.jdbc.Driver
+    jdbcUrl: jdbc:mysql://127.0.0.1:3306/stellaris_user_0?useUnicode=true&characterEncoding=UTF-8&rewriteBatchedStatements=true&allowMultiQueries=true&serverTimezone=Asia/Shanghai
+    username: root
+    password: mysql123
+  # 第二个用户库
+  ds_1:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    driverClassName: com.mysql.cj.jdbc.Driver
+    jdbcUrl: jdbc:mysql://127.0.0.1:3306/stellaris_user_1?useUnicode=true&characterEncoding=UTF-8&rewriteBatchedStatements=true&allowMultiQueries=true&serverTimezone=Asia/Shanghai
+    username: root
+    password: mysql123
+
+rules:
+  # 分库分表规则
+  - !SHARDING
+    tables:
+      # 对d_user_mobile表进行分库分表
+      d_user_mobile:
+        # 库为stellaris_user_0 stellaris_user_1 表为d_user_mobile_0 至 d_user_mobile_1
+        actualDataNodes: ds_${0..1}.d_user_mobile_${0..1}
+        # 分库策略
+        databaseStrategy:
+          standard:
+            # 使用mobile作为分片键
+            shardingColumn: mobile
+            # 用user_mobile列使用hash取模作为分库算法
+            shardingAlgorithmName: databaseUserMobileHashModModel
+        # 分表策略      
+        tableStrategy:
+          standard:
+            # 使用mobile作为分片键
+            shardingColumn: mobile
+            # 用user_mobile列使用hash取模作为分表算法
+            shardingAlgorithmName: tableUserMobileHashMod
+      # 对d_user_email表进行分库分表
+      d_user_email:
+        # 库为stellaris_user_0 stellaris_user_1 表为d_user_email_0 至 d_user_email_1
+        actualDataNodes: ds_${0..1}.d_user_email_${0..1}
+        # 分库策略
+        databaseStrategy:
+          standard:
+            # 使用email作为分片键
+            shardingColumn: email
+            # 用user_mobile列使用hash取模作为分库算法
+            shardingAlgorithmName: databaseUserEmailHashModModel
+        # 分表策略      
+        tableStrategy:
+          standard:
+            # 使用email作为分片键
+            shardingColumn: email
+            # 用user_mobile列使用hash取模作为分表算法
+            shardingAlgorithmName: tableUserEmailHashMod
+      # 对d_user表进行分库分表
+      d_user:
+        # 库为stellaris_user_0 stellaris_user_1 表为d_user_0 至 d_user_1
+        actualDataNodes: ds_${0..1}.d_user_${0..1}
+        # 分库策略
+        databaseStrategy:
+          standard:
+            # 使用id作为分片键
+            shardingColumn: id
+            # 用id列使用hash取模作为分库算法
+            shardingAlgorithmName: databaseUserModModel
+        # 分表策略      
+        tableStrategy:
+          standard:
+            # 使用id作为分片键
+            shardingColumn: id
+            # 用id列使用hash取模作为分表算法
+            shardingAlgorithmName: tableUserModModel
+      # 对d_ticket_user表进行分库分表
+      d_ticket_user:
+        # 库为stellaris_user_0 stellaris_user_1 表为d_ticket_user_0 至 d_ticket_user_1
+        actualDataNodes: ds_${0..1}.d_ticket_user_${0..1}
+        # 分库策略
+        databaseStrategy:
+          standard:
+            # 使用user_id作为分片键
+            shardingColumn: user_id
+            # 用user_id列使用hash取模作为分库算法
+            shardingAlgorithmName: databaseTicketUserModModel
+        # 分表策略      
+        tableStrategy:
+          standard:
+            # 使用user_id作为分片键
+            shardingColumn: user_id
+            # 用user_id列使用hash取模作为分表算法
+            shardingAlgorithmName: tableTicketUserModModel
+    # 具体的算法（采用基因位分离策略：分库用低位bit0，分表用次低位bit1，避免数据倾斜）
+    shardingAlgorithms:
+      # d_user_mobile表分库算法 - 使用mobile的hashCode低位(bit0)
+      databaseUserMobileHashModModel:
+        type: INLINE
+        props:
+          algorithm-expression: ds_${Math.abs(mobile.hashCode()) % 2}
+      # d_user_mobile表分表算法 - 使用mobile的hashCode次低位(bit1)
+      tableUserMobileHashMod:
+        type: INLINE
+        props:
+          algorithm-expression: d_user_mobile_${(Math.abs(mobile.hashCode()).intdiv(2)) % 2}
+      # d_user_email表分库算法 - 使用email的hashCode低位(bit0)
+      databaseUserEmailHashModModel:
+        type: INLINE
+        props:
+          algorithm-expression: ds_${Math.abs(email.hashCode()) % 2}
+      # d_user_email表分表算法 - 使用email的hashCode次低位(bit1)
+      tableUserEmailHashMod:
+        type: INLINE
+        props:
+          algorithm-expression: d_user_email_${(Math.abs(email.hashCode()).intdiv(2)) % 2}
+      # d_user表分库算法 - 使用id的低位(bit0)
+      databaseUserModModel:
+        type: INLINE
+        props:
+          algorithm-expression: ds_${id % 2}
+      # d_user表分表算法 - 使用id的次低位(bit1)
+      tableUserModModel:
+        type: INLINE
+        props:
+          algorithm-expression: d_user_${(id.intdiv(2)) % 2}
+      # d_ticket_user表分库算法 - 使用user_id的低位(bit0)
+      databaseTicketUserModModel:
+        type: INLINE
+        props:
+          algorithm-expression: ds_${user_id % 2}
+      # d_ticket_user表分表算法 - 使用user_id的次低位(bit1)
+      tableTicketUserModModel:
+        type: INLINE
+        props:
+          algorithm-expression: d_ticket_user_${(user_id.intdiv(2)) % 2}
+  # 加密规则
+  - !ENCRYPT
+    tables:
+      # d_user表
+      d_user:
+        columns:
+          # 对mobile列进行加密
+          mobile:
+            # 密文列mobile
+            cipherColumn: mobile
+            # 自定义的加密算法
+            encryptorName: user_encryption_algorithm
+          # 对password列进行加密
+          password:
+            # 密文列password
+            cipherColumn: password
+            # 自定义的加密算法
+            encryptorName: user_encryption_algorithm
+          # 对id_number列进行加密
+          id_number:
+            # 密文列id_number
+            cipherColumn: id_number
+            # 自定义的加密算法
+            encryptorName: user_encryption_algorithm
+      # d_user_mobile表
+      d_user_mobile:
+        columns:
+          # 对mobile列进行加密
+          mobile:
+            # 密文列id_number
+            cipherColumn: mobile
+            # 自定义的加密算法
+            encryptorName: user_encryption_algorithm
+    # 加密算法定义
+    encryptors:
+      user_encryption_algorithm:
+        type: SM4
+        props:
+          sm4-key: d3ecdaa11d6ab89e1987870186073eaa
+          sm4-mode: CBC
+          sm4-iv: 1afc7fdce9ebc393f693cd3d23e35ed2
+          sm4-padding: PKCS7Padding
+props:
+  # 打印真实sql
+  sql-show: true

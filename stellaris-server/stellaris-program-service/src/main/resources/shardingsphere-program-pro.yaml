@@ -1,0 +1,155 @@
+dataSources: 
+  ds_0:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    driverClassName: com.mysql.cj.jdbc.Driver
+    jdbcUrl: jdbc:mysql://127.0.0.1:3306/stellaris_program_0?useUnicode=true&characterEncoding=UTF-8&rewriteBatchedStatements=true&allowMultiQueries=true&serverTimezone=Asia/Shanghai&autoReconnect=true
+    username: root
+    password: mysql123
+    hikari:
+      max-lifetime: 60000
+
+  ds_1:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    driverClassName: com.mysql.cj.jdbc.Driver
+    jdbcUrl: jdbc:mysql://127.0.0.1:3306/stellaris_program_1?useUnicode=true&characterEncoding=UTF-8&rewriteBatchedStatements=true&allowMultiQueries=true&serverTimezone=Asia/Shanghai&autoReconnect=true
+    username: root
+    password: mysql123
+    hikari:
+      max-lifetime: 60000
+    
+rules:
+  - !SHARDING
+    tables:
+      d_program:
+        actualDataNodes: ds_${0..1}.d_program_${0..1}
+        databaseStrategy:
+          standard:
+            shardingColumn: id
+            shardingAlgorithmName: databaseProgramModModel
+        tableStrategy:
+          standard:
+            shardingColumn: id
+            shardingAlgorithmName: tableProgramModModel     
+      d_program_group:
+        actualDataNodes: ds_${0..1}.d_program_group_${0..1}
+        databaseStrategy:
+          standard:
+            shardingColumn: id
+            shardingAlgorithmName: databaseProgramGroupModModel 
+        tableStrategy:
+          standard:
+            shardingColumn: id
+            shardingAlgorithmName: tableProgramGroupModModel
+      d_program_show_time:
+        actualDataNodes: ds_${0..1}.d_program_show_time_${0..1}
+        databaseStrategy:
+          standard:
+            shardingColumn: program_id
+            shardingAlgorithmName: databaseProgramShowTimeModModel
+        tableStrategy:
+          standard:
+            shardingColumn: program_id
+            shardingAlgorithmName: tableProgramShowTimeModModel
+      d_seat:
+        actualDataNodes: ds_${0..1}.d_seat_${0..1}
+        databaseStrategy:
+          standard:
+            shardingColumn: program_id
+            shardingAlgorithmName: databaseSeatModModel
+        tableStrategy:
+          standard:
+            shardingColumn: program_id
+            shardingAlgorithmName: tableSeatModModel
+      d_ticket_category:
+        actualDataNodes: ds_${0..1}.d_ticket_category_${0..1}
+        databaseStrategy:
+          standard:
+            shardingColumn: program_id
+            shardingAlgorithmName: databaseTicketCategoryModModel
+        tableStrategy:
+          standard:
+            shardingColumn: program_id
+            shardingAlgorithmName: tableTicketCategoryModModel
+      d_program_record_task:
+        actualDataNodes: ds_${0..1}.d_program_record_task_${0..1}
+        databaseStrategy:
+          standard:
+            shardingColumn: create_time
+            shardingAlgorithmName: databaseProgramRecordTaskModModel
+        tableStrategy:
+          standard:
+            shardingColumn: create_time
+            shardingAlgorithmName: tableProgramRecordTaskModModel      
+      d_order_inventory_operation:
+        actualDataNodes: ds_${0..1}.d_order_inventory_operation_${0..1}
+        databaseStrategy:
+          standard:
+            shardingColumn: program_id
+            shardingAlgorithmName: databaseOrderInventoryOperationModModel
+        tableStrategy:
+          standard:
+            shardingColumn: program_id
+            shardingAlgorithmName: tableOrderInventoryOperationModModel
+    broadcastTables:
+      - d_program_category
+    shardingAlgorithms:
+      databaseProgramModModel:
+        type: INLINE
+        props:
+          algorithm-expression: ds_${id % 2}
+      tableProgramModModel:
+        type: INLINE
+        props:
+          algorithm-expression: d_program_${(id.intdiv(2)) % 2}
+      databaseProgramGroupModModel:
+        type: INLINE
+        props:
+          algorithm-expression: ds_${id % 2}
+      tableProgramGroupModModel:
+        type: INLINE
+        props:
+          algorithm-expression: d_program_group_${(id.intdiv(2)) % 2}
+      databaseProgramShowTimeModModel:
+        type: INLINE
+        props:
+          algorithm-expression: ds_${program_id % 2}
+      tableProgramShowTimeModModel:
+        type: INLINE
+        props:
+          algorithm-expression: d_program_show_time_${(program_id.intdiv(2)) % 2}
+      databaseSeatModModel:
+        type: INLINE
+        props:
+          algorithm-expression: ds_${program_id % 2}
+      tableSeatModModel:
+        type: INLINE
+        props:
+          algorithm-expression: d_seat_${(program_id.intdiv(2)) % 2}
+      databaseTicketCategoryModModel:
+        type: INLINE
+        props:
+          algorithm-expression: ds_${program_id % 2}
+      tableTicketCategoryModModel:
+        type: INLINE
+        props:
+          algorithm-expression: d_ticket_category_${(program_id.intdiv(2)) % 2}
+      databaseProgramRecordTaskModModel:
+        type: INLINE
+        props:
+          algorithm-expression: ds_${Math.abs(create_time.hashCode()) % 2}
+          allow-range-query-with-inline-sharding: true
+      tableProgramRecordTaskModModel:
+        type: INLINE
+        props:
+          algorithm-expression: d_program_record_task_${(Math.abs(create_time.hashCode()).intdiv(2)) % 2}
+          allow-range-query-with-inline-sharding: true
+      databaseOrderInventoryOperationModModel:
+        type: INLINE
+        props:
+          algorithm-expression: ds_${program_id % 2}
+      tableOrderInventoryOperationModModel:
+        type: INLINE
+        props:
+          algorithm-expression: d_order_inventory_operation_${(program_id.intdiv(2)) % 2}
+props:
+  sql-show: true

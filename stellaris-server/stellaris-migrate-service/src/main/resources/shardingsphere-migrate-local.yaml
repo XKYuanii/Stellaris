@@ -1,0 +1,55 @@
+dataSources:
+  ds_0:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    driverClassName: com.mysql.cj.jdbc.Driver
+    jdbcUrl: jdbc:mysql://127.0.0.1:3306/stellaris_order_0?useUnicode=true&characterEncoding=UTF-8&rewriteBatchedStatements=true&allowMultiQueries=true&serverTimezone=Asia/Shanghai&autoReconnect=true
+    username: root
+    password: mysql123
+    hikari:
+      # 连接池配置优化
+      minimum-idle: 15                    # 最小空闲连接数(订单服务负载较高)
+      maximum-pool-size: 80               # 最大连接池大小(订单服务负载较高)
+      connection-timeout: 30000           # 连接超时时间(30秒)
+      idle-timeout: 600000                # 空闲连接超时时间(10分钟)
+      max-lifetime: 1800000               # 连接最大生命周期(30分钟)
+      leak-detection-threshold: 60000     # 连接泄漏检测阈值(60秒)
+  ds_1:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    driverClassName: com.mysql.cj.jdbc.Driver
+    jdbcUrl: jdbc:mysql://127.0.0.1:3306/stellaris_order_1?useUnicode=true&characterEncoding=UTF-8&rewriteBatchedStatements=true&allowMultiQueries=true&serverTimezone=Asia/Shanghai&autoReconnect=true
+    username: root
+    password: mysql123
+    hikari:
+      # 连接池配置优化
+      minimum-idle: 15                    # 最小空闲连接数(订单服务负载较高)
+      maximum-pool-size: 80               # 最大连接池大小(订单服务负载较高)
+      connection-timeout: 30000           # 连接超时时间(30秒)
+      idle-timeout: 600000                # 空闲连接超时时间(10分钟)
+      max-lifetime: 1800000               # 连接最大生命周期(30分钟)
+      leak-detection-threshold: 60000     # 连接泄漏检测阈值(60秒)
+
+rules:
+  - !SHARDING
+    tables:
+      d_order:
+        actualDataNodes: ds_${0..1}.d_order_${0..7}
+        databaseStrategy:
+          hint:
+            shardingAlgorithmName: database-order-hint-algorithm
+        tableStrategy:
+          hint:
+            shardingAlgorithmName: table-order-hint-algorithm
+    
+    shardingAlgorithms:
+      database-order-hint-algorithm:
+        type: CLASS_BASED
+        props:
+          strategy: HINT
+          algorithmClassName: com.stellaris.shardingsphere.algorithm.DatabaseOrderHintShardingAlgorithm
+      table-order-hint-algorithm:
+        type: CLASS_BASED
+        props:
+          strategy: HINT
+          algorithmClassName: com.stellaris.shardingsphere.algorithm.TableOrderHintShardingAlgorithm
+props:
+  sql-show: true

@@ -1,0 +1,220 @@
+#服务端口
+server:
+  port: 8081
+  # Tomcat线程池配置优化(订单服务高负载)
+  tomcat:
+    threads:
+      max: 500                    # 最大工作线程数(订单服务负载更高)
+      min-spare: 80               # 最小空闲线程数
+    max-connections: 10000        # 最大连接数
+    accept-count: 300             # 等待队列长度
+    connection-timeout: 30000     # 连接超时时间(30秒)
+    max-http-header-size: 8192    # HTTP头最大大小
+# 应用名称
+spring:
+  profiles:
+    active: local
+  application:
+    name: ${prefix.distinction.name:stellaris}-order-service
+  main:
+    allow-bean-definition-overriding: true
+    allow-circular-references: true
+  mvc:
+    pathmatch:
+      matching-strategy: ant_path_matcher
+    servlet:
+      load-on-startup: 1
+    jackson:
+      time-zone: GMT+8
+      date-format: yyyy-MM-dd HH:mm:ss
+      generator:
+        WRITE_NUMBERS_AS_STRINGS: true
+  datasource:
+    driver-class-name: org.apache.shardingsphere.driver.ShardingSphereDriver
+    url: jdbc:shardingsphere:classpath:shardingsphere-order-${spring.profiles.active}.yaml
+  data:
+    redis:
+      database: 0
+      host: ${STELLARIS_REDIS_HOST:127.0.0.1}
+      port: ${STELLARIS_REDIS_PORT:6380}
+      password: redis123
+      timeout: 5000                     # 连接超时时间(5秒)
+      jedis:
+        pool:
+          max-active: 600               # 最大活跃连接数(订单服务负载高)
+          max-idle: 120                 # 最大空闲连接数
+          min-idle: 30                  # 最小空闲连接数
+          max-wait: 3000                # 最大等待时间(3秒)
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+        # 本地多服务部署固定走回环地址，避免可靠事件重试命中不可达的旧网卡 IP。
+        ip: ${STELLARIS_NACOS_DISCOVERY_IP:127.0.0.1}
+        username: nacos
+        password: nacos
+  kafka:
+    bootstrap-servers: ${STELLARIS_KAFKA_SERVERS:127.0.0.1:9092}
+    admin:
+      fail-fast: true
+      modify-topic-configs: true
+    producer:
+      acks: all
+      retries: 10
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        delivery.timeout.ms: 30000
+        request.timeout.ms: 10000
+    consumer:
+      #默认的消费组ID
+      group-id: create_order_data
+      #是否自动提交offset
+      enable-auto-commit: false
+      # 当kafka中没有初始offset或offset超出范围时将自动重置offset
+      # earliest:重置为分区中最小的offset;
+      # latest:重置为分区中最新的offset(消费分区中新产生的数据);
+      # none:只要有一个分区不存在已提交的offset,就抛出异常;
+      auto-offset-reset: latest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      ack-mode: manual_immediate
+    topic: create_order
+      
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  global-config:
+    db-config:
+      logic-delete-field: status
+      logic-delete-value: 0
+      logic-not-delete-value: 1
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    local-cache-scope: statement
+feign:
+  sentinel:
+    enabled: false
+  hystrix:
+    enabled: true
+  httpclient:
+    enabled: false
+  okhttp:
+    enabled: true
+  compression:
+    request:
+      enabled: true
+      mime-types: text/xml,application/xml,application/json
+      min-request-size: 512
+    response:
+      enabled: true
+management:
+  metrics:
+    tags:
+      application: order-service
+  endpoint:
+    health:
+      show-details: always
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+  health:
+    elasticsearch:
+      enabled: false
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+jasypt:
+  encryptor:
+    password: bgtjkjl!%^sdc
+    algorithm: PBEWithMD5AndDES
+delay:
+  queue:
+    corePoolSize: 20                    # 核心线程数(订单服务负载更高)
+    maximumPoolSize: 40                 # 最大线程数
+    isolationRegionCount: 8             # 隔离区域数量(提升并发)
+
+order-create-consumer:
+  retry:
+    interval-ms: 1000
+    max-attempts: 3
+  dlt-audit-retry-interval-ms: 5000
+
+# v5 未支付取消：生产在订单本地事务 afterCommit 后写入 pending；DB 扫描为可靠兜底。
+delay-cancel-lease:
+  enabled: true
+  timeout-ms: 900000
+  fixed-delay-ms: 1000
+  db-scan-fixed-delay-ms: 60000
+  lease-ms: 120000
+  max-attempts: 10
+  retry-backoff-ms: 5000
+
+# v5 支付/取消后的库存迁移可靠命令：订单状态与事件同事务提交，节目侧失败后异步重试。
+reservation-transition:
+  fixed-delay-ms: 5000
+  retry-backoff-ms: 5000
+  processing-timeout-ms: 60000
+  max-attempts: 20
+  batch-size: 100
+
+kafka-topic:
+  create-order:
+    partitions: ${STELLARIS_CREATE_ORDER_PARTITIONS:3}
+    replicas: ${STELLARIS_CREATE_ORDER_REPLICAS:1}
+    min-insync-replicas: ${STELLARIS_CREATE_ORDER_MIN_ISR:1}
+
+order:
+  reconciliation:
+    enabled: true
+    cron: "0 0/3 * * * ?"
+    lookback-minutes: 3
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: 'default'
+      paths-to-match: '/**'
+      #生成文档所需的扫包路径，一般为启动类目录
+      packages-to-scan: com.stellaris.controller
+#knife4j配置
+knife4j:
+  #是否启用增强设置
+  enable: true
+  #开启生产环境屏蔽
+  production: false
+  #是否启用登录认证
+  basic:
+    enable: false
+  setting:
+    language: zh_cn
+    enable-version: true
+    enable-swagger-models: true
+    
+seata:
+  enabled: true                                 # 启动事务中间件
+  application-id: order-service
+  data-source-proxy-mode: AT                    # 事务模式，默认AT
+  enable-auto-data-source-proxy: true           # 开启数据源自动代理
+  transport:
+    enable-client-batch-send-request: true      # 客户端事务消息请求是否批量合并发送，默认true，false单条发送
+    enable-rm-client-batch-send-request: true   # RM(资源管理器)客户端会将多个分支事务的请求批量发送给 TC（Transaction Coordinator，事务协调器），提高事务处理效率
+  tx-service-group: order-service # 事务组名称(可自定义)
+  service:
+    disable-global-transaction: false
+    enable-degrade: false
+    # 事务组映射到组列表处理
+    vgroup-mapping:
+      # 事务组名称作为映射k
+      order-service: order-service-map
+    grouplist:
+      # 映射值作为组k，交给seata服务处理
+      order-service-map: 127.0.0.1:8091    

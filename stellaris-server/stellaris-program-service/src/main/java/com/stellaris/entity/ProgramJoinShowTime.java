@@ -1,0 +1,34 @@
+package com.stellaris.entity;
+
+import lombok.Data;
+
+import java.io.Serial;
+import java.io.Serializable;
+import java.util.Date;
+
+/**
+ * @program: Stellaris（星演）高并发票务平台。
+ * @description: 节目 实体 连表使用
+ * @author: 阿星不是程序员
+ **/
+@Data
+public class ProgramJoinShowTime extends Program implements Serializable {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
+    
+    /**
+     * 演出时间
+     */
+    private Date showTime;
+    
+    /**
+     * 演出时间(精确到天)
+     */
+    private Date showDayTime;
+    
+    /**
+     * 演出时间所在的星期
+     */
+    private String showWeekTime;
+}

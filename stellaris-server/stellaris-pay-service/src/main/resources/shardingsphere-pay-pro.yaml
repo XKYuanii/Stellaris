@@ -1,0 +1,72 @@
+dataSources:    
+  ds_0:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    driverClassName: com.mysql.cj.jdbc.Driver
+    jdbcUrl: jdbc:mysql://127.0.0.1:3306/stellaris_pay_0?useUnicode=true&characterEncoding=UTF-8&rewriteBatchedStatements=true&allowMultiQueries=true&serverTimezone=Asia/Shanghai
+    username: root
+    password: mysql123
+
+  ds_1:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    driverClassName: com.mysql.cj.jdbc.Driver
+    jdbcUrl: jdbc:mysql://127.0.0.1:3306/stellaris_pay_1?useUnicode=true&characterEncoding=UTF-8&rewriteBatchedStatements=true&allowMultiQueries=true&serverTimezone=Asia/Shanghai
+    username: root
+    password: mysql123
+    
+rules:
+  - !SHARDING
+    tables:
+      d_pay_bill:
+        actualDataNodes: ds_${0..1}.d_pay_bill_${0..1}
+        databaseStrategy:
+          standard:
+            shardingColumn: out_order_no
+            shardingAlgorithmName: databasePayHashModModel   
+        tableStrategy:
+          standard:
+            shardingColumn: out_order_no
+            shardingAlgorithmName: tablePayHashModModel
+      d_refund_bill:
+        actualDataNodes: ds_${0..1}.d_refund_bill_${0..1}
+        databaseStrategy:
+          standard:
+            shardingColumn: out_order_no
+            shardingAlgorithmName: databaseRefundHashModModel    
+        tableStrategy:
+          standard:
+            shardingColumn: out_order_no
+            shardingAlgorithmName: tableRefundHashModModel
+      d_refund_intent:
+        actualDataNodes: ds_${0..1}.d_refund_intent_${0..1}
+        databaseStrategy:
+          standard:
+            shardingColumn: out_order_no
+            shardingAlgorithmName: databaseRefundHashModModel
+        tableStrategy:
+          standard:
+            shardingColumn: out_order_no
+            shardingAlgorithmName: tableRefundIntentHashModModel
+    shardingAlgorithms:
+      databasePayHashModModel:
+        type: INLINE
+        props:
+          algorithm-expression: ds_${Math.abs(out_order_no.hashCode()) % 2}
+      tablePayHashModModel:
+        type: INLINE
+        props:
+          algorithm-expression: d_pay_bill_${(Math.abs(out_order_no.hashCode()).intdiv(2)) % 2}
+      databaseRefundHashModModel:
+        type: INLINE
+        props:
+          algorithm-expression: ds_${Math.abs(out_order_no.hashCode()) % 2}
+      tableRefundHashModModel:
+        type: INLINE
+        props:
+          algorithm-expression: d_refund_bill_${(Math.abs(out_order_no.hashCode()).intdiv(2)) % 2}
+      tableRefundIntentHashModModel:
+        type: INLINE
+        props:
+          algorithm-expression: d_refund_intent_${(Math.abs(out_order_no.hashCode()).intdiv(2)) % 2}
+props:
+  sql-show: true
+      

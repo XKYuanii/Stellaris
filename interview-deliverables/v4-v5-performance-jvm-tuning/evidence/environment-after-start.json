@@ -1,0 +1,17 @@
+{
+  "capturedAt": "2026-08-29T12:02:40.5523279+08:00",
+  "os": "Microsoft Windows 11 专业版",
+  "osVersion": "10.0.26200",
+  "totalRamGb": 15.74,
+  "freeRamGb": 2.1,
+  "cpu": "13th Gen Intel(R) Core(TM) i7-13700HX",
+  "physicalCores": 16,
+  "logicalProcessors": 24,
+  "docker": [
+    "xingyan-interview-mysql-1|Up 14 hours (healthy)",
+    "xingyan-interview-redis-1|Up 14 hours (healthy)",
+    "xingyan-interview-kafka-1|Up 14 hours (healthy)",
+    "xingyan-interview-elasticsearch-1|Up 43 minutes (healthy)",
+    "xingyan-interview-nacos-1|Up 14 hours (healthy)"
+  ]
+}

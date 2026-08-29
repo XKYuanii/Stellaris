@@ -1,0 +1,35 @@
+package com.stellaris.service.cache.local;
+
+import com.stellaris.entity.ProgramCategory;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import org.springframework.stereotype.Component;
+
+import jakarta.annotation.PostConstruct;
+import java.util.function.Function;
+
+/**
+ * @program: Stellaris（星演）高并发票务平台。
+ * @description: 节目种类本地缓存
+ * @author: 阿星不是程序员
+ **/
+@Component
+public class LocalCacheProgramCategory {
+    
+    /**
+     * 本地缓存
+     * */
+    private Cache<String, ProgramCategory> localCache;
+    
+    @PostConstruct
+    public void localLockCacheInit(){
+        localCache = Caffeine.newBuilder().build();
+    }
+    
+    /**
+     * 获得锁，Caffeine的get是线程安全的
+     * */
+    public ProgramCategory get(String id, Function<String, ProgramCategory> function){
+        return localCache.get(id,function);
+    }
+}

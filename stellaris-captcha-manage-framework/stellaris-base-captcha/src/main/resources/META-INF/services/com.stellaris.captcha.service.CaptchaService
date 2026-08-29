@@ -1,0 +1,3 @@
+com.stellaris.captcha.service.impl.BlockPuzzleCaptchaServiceImpl
+com.stellaris.captcha.service.impl.ClickWordCaptchaServiceImpl
+com.stellaris.captcha.service.impl.DefaultCaptchaServiceImpl

@@ -1,0 +1,4 @@
+org.springframework.boot.env.EnvironmentPostProcessor=\
+  com.stellaris.environment.SpringEnvironment
+org.springframework.context.ApplicationContextInitializer=\
+  com.stellaris.core.SpringUtil

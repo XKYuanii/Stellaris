@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Stellaris V5 Step Capacity" enabled="true">
+      <stringProp name="TestPlan.comments">One target QPS per run. Formal samples are tagged by phase. Business failures are failed samples.</stringProp>
+      <boolProp name="TestPlan.functional_mode">false</boolProp>
+      <boolProp name="TestPlan.tearDown_on_shutdown">true</boolProp>
+      <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="Benchmark Variables" enabled="true">
+        <collectionProp name="Arguments.arguments">
+          <elementProp name="protocol" elementType="Argument"><stringProp name="Argument.name">protocol</stringProp><stringProp name="Argument.value">${__P(protocol,http)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+          <elementProp name="host" elementType="Argument"><stringProp name="Argument.name">host</stringProp><stringProp name="Argument.value">${__P(host,127.0.0.1)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+          <elementProp name="port" elementType="Argument"><stringProp name="Argument.name">port</stringProp><stringProp name="Argument.value">${__P(port,6085)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+          <elementProp name="path" elementType="Argument"><stringProp name="Argument.name">path</stringProp><stringProp name="Argument.value">${__P(path,/stellaris/program/program/order/create/v5)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+          <elementProp name="programId" elementType="Argument"><stringProp name="Argument.name">programId</stringProp><stringProp name="Argument.value">${__P(programId,900000)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+          <elementProp name="ticketCategoryId" elementType="Argument"><stringProp name="Argument.name">ticketCategoryId</stringProp><stringProp name="Argument.value">${__P(ticketCategoryId,900001)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+          <elementProp name="noVerify" elementType="Argument"><stringProp name="Argument.name">noVerify</stringProp><stringProp name="Argument.value">${__P(noVerify,true)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+          <elementProp name="targetQps" elementType="Argument"><stringProp name="Argument.name">targetQps</stringProp><stringProp name="Argument.value">${__P(targetQps,100)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+          <elementProp name="rampUpSeconds" elementType="Argument"><stringProp name="Argument.name">rampUpSeconds</stringProp><stringProp name="Argument.value">${__P(rampUpSeconds,10)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+          <elementProp name="warmupSeconds" elementType="Argument"><stringProp name="Argument.name">warmupSeconds</stringProp><stringProp name="Argument.value">${__P(warmupSeconds,15)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+          <elementProp name="sampleSeconds" elementType="Argument"><stringProp name="Argument.name">sampleSeconds</stringProp><stringProp name="Argument.value">${__P(sampleSeconds,20)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+          <elementProp name="rampDownSeconds" elementType="Argument"><stringProp name="Argument.name">rampDownSeconds</stringProp><stringProp name="Argument.value">${__P(rampDownSeconds,5)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+        </collectionProp>
+      </elementProp>
+      <stringProp name="TestPlan.user_define_classpath"></stringProp>
+    </TestPlan>
+    <hashTree>
+      <ConfigTestElement guiclass="HttpDefaultsGui" testclass="ConfigTestElement" testname="HTTP Request Defaults" enabled="true">
+        <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="HTTP Arguments" enabled="true"><collectionProp name="Arguments.arguments"/></elementProp>
+        <stringProp name="HTTPSampler.domain">${host}</stringProp>
+        <stringProp name="HTTPSampler.port">${port}</stringProp>
+        <stringProp name="HTTPSampler.protocol">${protocol}</stringProp>
+        <stringProp name="HTTPSampler.connect_timeout">3000</stringProp>
+        <stringProp name="HTTPSampler.response_timeout">10000</stringProp>
+      </ConfigTestElement>
+      <hashTree/>
+      <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="V5 HTTP Headers" enabled="true">
+        <collectionProp name="HeaderManager.headers">
+          <elementProp name="Content-Type" elementType="Header"><stringProp name="Header.name">Content-Type</stringProp><stringProp name="Header.value">application/json;charset=UTF-8</stringProp></elementProp>
+          <elementProp name="no_verify" elementType="Header"><stringProp name="Header.name">no_verify</stringProp><stringProp name="Header.value">${noVerify}</stringProp></elementProp>
+          <elementProp name="token" elementType="Header"><stringProp name="Header.name">token</stringProp><stringProp name="Header.value">${token}</stringProp></elementProp>
+        </collectionProp>
+      </HeaderManager>
+      <hashTree/>
+      <CSVDataSet guiclass="TestBeanGUI" testclass="CSVDataSet" testname="1000 Shared Benchmark Users" enabled="true">
+        <stringProp name="filename">${__P(dataFile,tests/benchmark/users.csv)}</stringProp>
+        <stringProp name="fileEncoding">UTF-8</stringProp>
+        <stringProp name="variableNames">userId,ticketUserId,token</stringProp>
+        <boolProp name="ignoreFirstLine">true</boolProp>
+        <stringProp name="delimiter">,</stringProp>
+        <boolProp name="quotedData">false</boolProp>
+        <boolProp name="recycle">true</boolProp>
+        <boolProp name="stopThread">false</boolProp>
+        <stringProp name="shareMode">shareMode.all</stringProp>
+      </CSVDataSet>
+      <hashTree/>
+      <SetupThreadGroup guiclass="SetupThreadGroupGui" testclass="SetupThreadGroup" testname="Initialize Run Clock" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">stoptest</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true"><boolProp name="LoopController.continue_forever">false</boolProp><stringProp name="LoopController.loops">1</stringProp></elementProp>
+        <stringProp name="ThreadGroup.num_threads">1</stringProp><stringProp name="ThreadGroup.ramp_time">1</stringProp><boolProp name="ThreadGroup.scheduler">false</boolProp>
+      </SetupThreadGroup>
+      <hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="Set benchmarkStartMillis" enabled="true">
+          <stringProp name="cacheKey">true</stringProp><stringProp name="filename"></stringProp><stringProp name="parameters"></stringProp>
+          <stringProp name="script"><![CDATA[props.put('benchmarkStartMillis', String.valueOf(System.currentTimeMillis()))
+SampleResult.setResponseCode('200')
+SampleResult.setResponseMessage('run clock initialized')
+SampleResult.setSuccessful(true)]]></stringProp>
+          <stringProp name="scriptLanguage">groovy</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+      </hashTree>
+      <com.blazemeter.jmeter.threads.arrivals.FreeFormArrivalsThreadGroup guiclass="com.blazemeter.jmeter.threads.arrivals.FreeFormArrivalsThreadGroupGui" testclass="com.blazemeter.jmeter.threads.arrivals.FreeFormArrivalsThreadGroup" testname="V5 Fixed Arrival Rate" enabled="true">
+        <elementProp name="ThreadGroup.main_controller" elementType="com.blazemeter.jmeter.control.VirtualUserController" guiclass="LoopControlPanel" testclass="com.blazemeter.jmeter.control.VirtualUserController" testname="Virtual User Controller" enabled="true"/>
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <collectionProp name="Schedule">
+          <collectionProp name="ramp-up"><stringProp name="from">1</stringProp><stringProp name="to">${targetQps}</stringProp><stringProp name="duration">${rampUpSeconds}</stringProp></collectionProp>
+          <collectionProp name="warm-up"><stringProp name="from">${targetQps}</stringProp><stringProp name="to">${targetQps}</stringProp><stringProp name="duration">${warmupSeconds}</stringProp></collectionProp>
+          <collectionProp name="sample"><stringProp name="from">${targetQps}</stringProp><stringProp name="to">${targetQps}</stringProp><stringProp name="duration">${sampleSeconds}</stringProp></collectionProp>
+          <collectionProp name="ramp-down"><stringProp name="from">${targetQps}</stringProp><stringProp name="to">1</stringProp><stringProp name="duration">${rampDownSeconds}</stringProp></collectionProp>
+        </collectionProp>
+        <stringProp name="ConcurrencyLimit">${__P(threads,1000)}</stringProp>
+        <stringProp name="ArrivalsLimit">0</stringProp>
+        <stringProp name="LogFilename"></stringProp>
+        <stringProp name="Iterations"></stringProp>
+        <stringProp name="Unit">S</stringProp>
+        <boolProp name="same_user_on_next_iteration">false</boolProp>
+      </com.blazemeter.jmeter.threads.arrivals.FreeFormArrivalsThreadGroup>
+      <hashTree>
+        <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Build Unique Auto-seat Request" enabled="true">
+          <stringProp name="cacheKey">true</stringProp><stringProp name="filename"></stringProp><stringProp name="parameters"></stringProp>
+          <stringProp name="script"><![CDATA[import groovy.json.JsonOutput
+
+long start = (props.get('benchmarkStartMillis') ?: String.valueOf(System.currentTimeMillis())).toLong()
+long elapsed = Math.max(0L, System.currentTimeMillis() - start)
+long ramp = (props.get('rampUpSeconds') ?: '10').toLong() * 1000L
+long warm = (props.get('warmupSeconds') ?: '15').toLong() * 1000L
+long sample = (props.get('sampleSeconds') ?: '20').toLong() * 1000L
+String phase = elapsed < ramp ? 'ramp-up' : elapsed < ramp + warm ? 'warm-up' : elapsed < ramp + warm + sample ? 'sample' : 'ramp-down'
+String requestId = UUID.randomUUID().toString()
+vars.put('phase', phase)
+vars.put('requestId', requestId)
+vars.put('orderNumber', 'NOT_FOUND')
+vars.put('failureType', 'TECHNICAL')
+vars.put('businessCode', 'NOT_PARSED')
+vars.put('businessMessage', '')
+vars.put('requestBody', JsonOutput.toJson([
+    requestId: requestId,
+    programId: vars.get('programId'),
+    userId: vars.get('userId'),
+    ticketUserIdList: [vars.get('ticketUserId')],
+    ticketCategoryId: vars.get('ticketCategoryId'),
+    ticketCount: 1
+]))]]></stringProp>
+          <stringProp name="scriptLanguage">groovy</stringProp>
+        </JSR223PreProcessor>
+        <hashTree/>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="V5 Create [${phase}]" enabled="true">
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="Body" enabled="true">
+            <collectionProp name="Arguments.arguments"><elementProp name="" elementType="HTTPArgument"><boolProp name="HTTPArgument.always_encode">false</boolProp><stringProp name="Argument.value">${requestBody}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp></collectionProp>
+          </elementProp>
+          <stringProp name="HTTPSampler.path">${path}</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp><boolProp name="HTTPSampler.auto_redirects">false</boolProp><boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp><stringProp name="HTTPSampler.embedded_url_re"></stringProp><stringProp name="HTTPSampler.method">POST</stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="Extract orderNumber" enabled="true">
+            <stringProp name="JSONPostProcessor.referenceNames">orderNumber</stringProp><stringProp name="JSONPostProcessor.jsonPathExprs">$.data</stringProp><stringProp name="JSONPostProcessor.match_numbers">1</stringProp><stringProp name="JSONPostProcessor.defaultValues">NOT_FOUND</stringProp><boolProp name="JSONPostProcessor.compute_concat">false</boolProp>
+          </JSONPostProcessor>
+          <hashTree/>
+          <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Assert HTTP and Business Success" enabled="true">
+            <stringProp name="cacheKey">true</stringProp><stringProp name="filename"></stringProp><stringProp name="parameters"></stringProp>
+            <stringProp name="script"><![CDATA[import groovy.json.JsonSlurper
+
+String clean(Object value) {
+    return value == null ? '' : String.valueOf(value).replaceAll(/[\r\n,]+/, ' ')
+}
+
+String httpCode = prev.getResponseCode()
+if (httpCode != '200') {
+    vars.put('failureType', 'TECHNICAL')
+    vars.put('businessCode', httpCode != null && httpCode.startsWith('Non HTTP') ? 'TRANSPORT_ERROR' : 'HTTP_' + clean(httpCode))
+    vars.put('businessMessage', clean(prev.getResponseMessage()))
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Technical HTTP failure: ' + clean(prev.getResponseMessage()))
+    return
+}
+
+try {
+    def response = new JsonSlurper().parseText(prev.getResponseDataAsString())
+    String code = response.code == null ? 'NULL' : String.valueOf(response.code)
+    String message = clean(response.message)
+    vars.put('businessCode', code)
+    vars.put('businessMessage', message)
+    if (code != '0') {
+        vars.put('failureType', 'BUSINESS')
+        AssertionResult.setFailure(true)
+        AssertionResult.setFailureMessage('Business failure: code=' + code + ' message=' + message)
+    } else if (response.data == null || !(String.valueOf(response.data) ==~ /\d+/)) {
+        vars.put('failureType', 'TECHNICAL')
+        vars.put('businessCode', 'INVALID_SUCCESS_BODY')
+        vars.put('businessMessage', 'code=0 but numeric orderNumber is missing')
+        AssertionResult.setFailure(true)
+        AssertionResult.setFailureMessage('Invalid success response contract')
+    } else {
+        vars.put('failureType', 'SUCCESS')
+        vars.put('orderNumber', String.valueOf(response.data))
+    }
+} catch (Exception e) {
+    vars.put('failureType', 'TECHNICAL')
+    vars.put('businessCode', 'INVALID_JSON')
+    vars.put('businessMessage', clean(e.getMessage()))
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage('Invalid JSON: ' + clean(e.getMessage()))
+}]]></stringProp>
+            <stringProp name="scriptLanguage">groovy</stringProp>
+          </JSR223Assertion>
+          <hashTree/>
+        </hashTree>
+      </hashTree>
+      <BackendListener guiclass="BackendListenerGui" testclass="BackendListener" testname="Optional Graphite Backend Listener - configure before enabling" enabled="false">
+        <elementProp name="arguments" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" enabled="true"><collectionProp name="Arguments.arguments"/></elementProp>
+        <stringProp name="classname">org.apache.jmeter.visualizers.backend.graphite.GraphiteBackendListenerClient</stringProp>
+      </BackendListener>
+      <hashTree/>
+      <kg.apc.jmeter.perfmon.PerfMonCollector guiclass="kg.apc.jmeter.perfmon.PerfMonCollectorGui" testclass="kg.apc.jmeter.perfmon.PerfMonCollector" testname="Optional PerfMon - configure ServerAgent before enabling" enabled="false">
+        <boolProp name="ResultCollector.error_logging">false</boolProp><objProp><name>saveConfig</name><value class="SampleSaveConfiguration"><time>true</time><latency>true</latency><timestamp>true</timestamp><success>true</success><label>true</label><code>true</code><message>true</message><threadName>true</threadName><dataType>true</dataType><encoding>false</encoding><assertions>true</assertions><subresults>true</subresults><responseData>false</responseData><samplerData>false</samplerData><xml>false</xml><fieldNames>true</fieldNames><responseHeaders>false</responseHeaders><requestHeaders>false</requestHeaders><responseDataOnError>false</responseDataOnError><saveAssertionResultsFailureMessage>true</saveAssertionResultsFailureMessage><assertionsResultsToSave>0</assertionsResultsToSave><bytes>true</bytes><sentBytes>true</sentBytes><url>true</url><threadCounts>true</threadCounts><idleTime>true</idleTime><connectTime>true</connectTime></value></objProp>
+        <stringProp name="filename"></stringProp><collectionProp name="metricConnections"/>
+      </kg.apc.jmeter.perfmon.PerfMonCollector>
+      <hashTree/>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>

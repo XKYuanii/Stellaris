@@ -1,0 +1,88 @@
+spring:
+  cloud:
+    gateway:
+      enabled: true
+      discovery:
+        locator:
+          enabled: true
+      routes:
+        - id: ${prefix.distinction.name:stellaris}-base-data-service
+          uri: lb://${prefix.distinction.name:stellaris}-base-data-service
+          predicates:
+            - Path=/stellaris/basedata/**
+          filters:
+            - StripPrefix=2
+          metadata:
+            title: 基础数据服务
+
+        - id: ${prefix.distinction.name:stellaris}-customize-service
+          uri: lb://${prefix.distinction.name:stellaris}-customize-service
+          predicates:
+            - Path=/stellaris/customize/**
+          filters:
+            - StripPrefix=2
+          metadata:
+            title: 定制化服务
+
+        - id: ${prefix.distinction.name:stellaris}-job-service
+          uri: lb://${prefix.distinction.name:stellaris}-job-service
+          predicates:
+            - Path=/stellaris/job/**
+          filters:
+            - StripPrefix=2
+          metadata:
+            title: 任务执行服务
+
+        - id: ${prefix.distinction.name:stellaris}-order-service
+          uri: lb://${prefix.distinction.name:stellaris}-order-service
+          predicates:
+            - Path=/stellaris/order/**
+          filters:
+            - StripPrefix=2
+          metadata:
+            title: 订单服务
+            
+        - id: ${prefix.distinction.name:stellaris}-migrate-service
+          uri: lb://${prefix.distinction.name:stellaris}-migrate-service
+          predicates:
+            - Path=/stellaris/migrate/**
+          filters:
+            - StripPrefix=2
+          metadata:
+            title: 迁移服务    
+
+        - id: ${prefix.distinction.name:stellaris}-pay-service
+          uri: lb://${prefix.distinction.name:stellaris}-pay-service
+          predicates:
+            - Path=/stellaris/pay/**
+          filters:
+            - StripPrefix=2
+          metadata:
+            title: 支付服务
+
+        - id: ${prefix.distinction.name:stellaris}-program-service
+          uri: lb://${prefix.distinction.name:stellaris}-program-service
+          predicates:
+            - Path=/stellaris/program/**
+          filters:
+            - StripPrefix=2
+          metadata:
+            title: 节目服务
+
+        - id: ${prefix.distinction.name:stellaris}-user-service
+          uri: lb://${prefix.distinction.name:stellaris}-user-service
+          predicates:
+            - Path=/stellaris/user/**
+          filters:
+            - StripPrefix=2
+          metadata:
+            title: 用户服务
+            
+        - id: ${prefix.distinction.name:stellaris}-admin-service
+          uri: lb://${prefix.distinction.name:stellaris}-admin-service
+          predicates:
+            - Path=/stellaris/admin/**
+          filters:
+            - StripPrefix=2
+          metadata:
+            title: 监听服务    

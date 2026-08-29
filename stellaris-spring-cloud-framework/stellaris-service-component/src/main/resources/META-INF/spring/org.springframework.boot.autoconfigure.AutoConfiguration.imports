@@ -1,0 +1,2 @@
+com.stellaris.feign.ExtraFeignAutoConfiguration
+com.stellaris.filter.FilterAutoConfiguration
