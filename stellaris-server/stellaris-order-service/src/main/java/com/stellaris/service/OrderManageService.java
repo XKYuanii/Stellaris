@@ -54,7 +54,7 @@ import static com.stellaris.constant.Constant.GLIDE_LINE;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 订单后台管理 service
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Slf4j
 @Service

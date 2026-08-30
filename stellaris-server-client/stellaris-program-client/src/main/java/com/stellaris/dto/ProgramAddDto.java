@@ -8,7 +8,7 @@ import lombok.Data;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 节目添加 dto
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @Schema(title="ProgramAddDto", description ="节目添加")

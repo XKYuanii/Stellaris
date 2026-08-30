@@ -11,7 +11,7 @@ import java.util.Date;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 节目演出时间添加 dto
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @Schema(title="ProgramShowTimeAddDto", description ="节目演出时间添加")

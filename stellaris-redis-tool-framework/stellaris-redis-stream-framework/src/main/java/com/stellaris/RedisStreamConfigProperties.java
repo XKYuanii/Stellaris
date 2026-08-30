@@ -7,7 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: redis-stream属性配置
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @ConfigurationProperties(prefix = RedisStreamConfigProperties.PREFIX)

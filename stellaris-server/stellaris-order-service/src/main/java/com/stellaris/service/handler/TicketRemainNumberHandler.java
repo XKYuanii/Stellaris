@@ -14,7 +14,7 @@ import static com.stellaris.core.DistributedLockConstants.REMAIN_NUMBER_LOCK;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 余票处理
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Slf4j
 @Component

@@ -11,7 +11,7 @@ import java.util.List;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 负载均衡服务过滤接口的实现
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @AllArgsConstructor
 public class DefaultFilterLoadBalance implements FilterLoadBalance {

@@ -28,7 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: ImageUtils
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public class ImageUtils {
     private static final Logger logger = LoggerFactory.getLogger(ImageUtils.class);

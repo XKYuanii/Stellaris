@@ -15,7 +15,7 @@ import java.util.List;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 灰度版本选择相关配置
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @LoadBalancerClients(defaultConfiguration = {EnhanceLoadBalancerClientConfiguration.class, ReactiveSupportConfiguration.class, BlockingSupportConfiguration.class})
 public class GrayLoadBalanceAutoConfiguration {

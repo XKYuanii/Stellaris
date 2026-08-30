@@ -61,7 +61,7 @@ import static com.stellaris.constant.GatewayConstant.VERIFY_VALUE;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 请求过滤器
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 
 @Component

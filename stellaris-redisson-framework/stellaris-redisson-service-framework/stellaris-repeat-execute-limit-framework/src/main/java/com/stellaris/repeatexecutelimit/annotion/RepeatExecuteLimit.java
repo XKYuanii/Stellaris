@@ -9,7 +9,7 @@ import java.lang.annotation.Target;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 防重复幂等 注解
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Target(value= {ElementType.TYPE, ElementType.METHOD})
 @Retention(value= RetentionPolicy.RUNTIME)

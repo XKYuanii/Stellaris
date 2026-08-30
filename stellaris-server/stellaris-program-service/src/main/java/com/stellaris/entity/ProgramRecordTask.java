@@ -10,7 +10,7 @@ import java.io.Serializable;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 节目对账记录任务 实体
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @TableName("d_program_record_task")

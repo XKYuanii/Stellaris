@@ -7,7 +7,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: kafka 生产者配置
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @ConditionalOnProperty(value = "spring.kafka.bootstrap-servers")
 public class ProducerConfig {

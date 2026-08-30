@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 节目订单参数检查
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Component
 public class ProgramOrderCreateParamCheckHandler extends AbstractProgramCheckHandler {

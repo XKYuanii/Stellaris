@@ -11,7 +11,7 @@ import java.util.Date;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 节目分组 实体
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @TableName("d_program_group")

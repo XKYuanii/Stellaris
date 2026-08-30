@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: CacheUtil
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public final class CacheUtil {
     private static final Logger logger = LoggerFactory.getLogger(CacheUtil.class);

@@ -8,7 +8,7 @@ import java.util.List;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 用户和购票人 vo
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @Schema(title="UserAndTicketUserInfoVo", description ="用户和购票人集合数据")

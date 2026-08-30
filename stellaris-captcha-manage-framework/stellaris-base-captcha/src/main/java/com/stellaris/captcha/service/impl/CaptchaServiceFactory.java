@@ -14,7 +14,7 @@ import java.util.ServiceLoader;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 工厂
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public class CaptchaServiceFactory {
 

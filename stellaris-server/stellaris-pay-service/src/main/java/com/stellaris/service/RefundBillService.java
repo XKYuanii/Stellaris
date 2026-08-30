@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 退款账单 service
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Service
 public class RefundBillService extends ServiceImpl<RefundBillMapper, RefundBill> {

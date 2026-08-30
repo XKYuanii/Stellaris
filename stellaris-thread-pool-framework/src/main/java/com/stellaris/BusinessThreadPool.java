@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 线程池
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 
 public class BusinessThreadPool extends BaseThreadPool {

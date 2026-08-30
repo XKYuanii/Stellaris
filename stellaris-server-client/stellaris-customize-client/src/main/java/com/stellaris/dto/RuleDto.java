@@ -8,7 +8,7 @@ import lombok.Data;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 普通规则 dto
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @Schema(title="RuleDto", description ="普通规则")

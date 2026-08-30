@@ -12,7 +12,7 @@ import java.io.Serializable;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 用户密码更新 dto
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @Schema(title="UserUpdatePasswordDto", description ="修改用户密码")

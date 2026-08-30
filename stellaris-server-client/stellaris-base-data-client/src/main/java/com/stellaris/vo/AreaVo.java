@@ -9,7 +9,7 @@ import java.io.Serializable;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 地区 vo
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @Schema(title="AreaVo", description ="区域数据")

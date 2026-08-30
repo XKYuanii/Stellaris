@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
  * 由 {@link AbstractComposite#allExecute(Object)} 按广度优先顺序执行整棵树。</p>
  *
  * @param <T> 执行组件树时传入的业务参数类型
- * @author 阿星不是程序员
+ * @author: xz_y
  */
 public class CompositeContainer<T> {
 

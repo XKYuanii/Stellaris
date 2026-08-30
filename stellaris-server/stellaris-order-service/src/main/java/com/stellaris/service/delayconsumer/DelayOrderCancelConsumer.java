@@ -29,7 +29,7 @@ import static com.stellaris.service.constant.OrderConstant.DELAY_ORDER_CANCEL_TO
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 延迟订单取消
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Slf4j
 @Component

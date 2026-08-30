@@ -27,7 +27,7 @@ import static com.stellaris.constant.Constant.SERVER_GRAY;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 灰度过滤器
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 
 @Slf4j

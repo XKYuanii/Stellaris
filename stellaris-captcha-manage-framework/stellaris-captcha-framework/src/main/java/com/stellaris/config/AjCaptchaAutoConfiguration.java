@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Import;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: AjCaptchaAutoConfiguration
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 
 @Configuration

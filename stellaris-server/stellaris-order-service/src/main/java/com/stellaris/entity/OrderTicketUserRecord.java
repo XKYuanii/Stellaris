@@ -11,7 +11,7 @@ import java.math.BigDecimal;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 购票人订单记录 实体
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @TableName("d_order_ticket_user_record")

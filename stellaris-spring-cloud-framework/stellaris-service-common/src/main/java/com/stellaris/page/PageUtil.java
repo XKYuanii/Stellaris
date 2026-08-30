@@ -11,7 +11,7 @@ import java.util.stream.Collectors;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 分页工具
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public class PageUtil {
     

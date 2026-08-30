@@ -18,7 +18,7 @@ import static com.stellaris.constant.Constant.SPRING_INJECT_PREFIX_DISTINCTION_N
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 用户服务 feign
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Component
 @FeignClient(value = SPRING_INJECT_PREFIX_DISTINCTION_NAME+"-"+"user-service",fallback = UserClientFallback.class)

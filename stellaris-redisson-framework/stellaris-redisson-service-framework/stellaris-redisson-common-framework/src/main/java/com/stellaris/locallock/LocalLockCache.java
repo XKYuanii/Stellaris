@@ -8,7 +8,7 @@ import java.util.concurrent.locks.ReentrantLock;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 本地锁缓存
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public class LocalLockCache {
     

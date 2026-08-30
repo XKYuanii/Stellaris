@@ -9,7 +9,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 基础数据服务启动
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @MapperScan({"com.stellaris.mapper"})
 @EnableTransactionManagement

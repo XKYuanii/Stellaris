@@ -9,7 +9,7 @@ import java.io.Serializable;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 节目种类 vo
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @Schema(title="ProgramCategoryVo", description ="节目种类")

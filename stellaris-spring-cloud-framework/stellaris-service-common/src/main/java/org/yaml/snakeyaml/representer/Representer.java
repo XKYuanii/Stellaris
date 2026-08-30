@@ -39,7 +39,7 @@ import java.util.Set;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 解决shardingsphere 使用低版本snakeyaml和Springboot3不兼容问题
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public class Representer extends SafeRepresenter {
 

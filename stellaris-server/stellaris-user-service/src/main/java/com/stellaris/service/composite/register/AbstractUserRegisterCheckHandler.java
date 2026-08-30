@@ -9,7 +9,7 @@ import com.stellaris.initialize.impl.composite.AbstractComposite;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 用户注册验证基类，用户注册的相关验证逻辑继承此类
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public abstract class AbstractUserRegisterCheckHandler extends AbstractComposite<UserRegisterDto> {
     

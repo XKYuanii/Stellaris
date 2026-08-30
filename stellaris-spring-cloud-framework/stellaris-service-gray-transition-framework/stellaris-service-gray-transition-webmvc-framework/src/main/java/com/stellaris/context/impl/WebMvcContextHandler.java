@@ -11,7 +11,7 @@ import java.util.Objects;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: WebMvc上下文获取实现
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public class WebMvcContextHandler implements ContextHandler {
     @Override

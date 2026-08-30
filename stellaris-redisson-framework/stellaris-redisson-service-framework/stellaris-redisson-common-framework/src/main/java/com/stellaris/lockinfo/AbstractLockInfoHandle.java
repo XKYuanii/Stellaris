@@ -23,7 +23,7 @@ import static com.stellaris.core.Constants.SEPARATOR;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 锁信息抽象
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Slf4j
 public abstract class AbstractLockInfoHandle implements LockInfoHandle {

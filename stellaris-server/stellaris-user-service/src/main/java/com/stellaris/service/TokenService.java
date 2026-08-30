@@ -17,7 +17,7 @@ import java.util.Optional;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: token service
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 
 @Component

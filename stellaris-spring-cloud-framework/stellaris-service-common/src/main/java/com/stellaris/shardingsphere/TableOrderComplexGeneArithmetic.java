@@ -26,7 +26,7 @@ import java.util.Set;
  * - 当前：取bit0-1作为表索引（低2位）
  * - 扩容后：取bit0-2作为表索引（低3位）
  * 
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public class TableOrderComplexGeneArithmetic implements ComplexKeysShardingAlgorithm<Long> {
     

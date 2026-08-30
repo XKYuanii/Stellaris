@@ -69,7 +69,7 @@ import static com.stellaris.core.DistributedLockConstants.REGISTER_USER_LOCK;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 用户 service
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Slf4j
 @Service

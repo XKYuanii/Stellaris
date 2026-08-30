@@ -5,9 +5,9 @@ import lombok.Data;
 import java.util.Date;
 
 /**
- * @program: 数据中台实战项目。 添加 阿星不是程序员 微信，添加时备注 中台 来获取项目的完整资料 
+ * @program: Stellaris
  * @description: 消息记录视图返回对象
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 public class MessageRecordVo {

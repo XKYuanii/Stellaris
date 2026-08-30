@@ -7,7 +7,7 @@ import static com.stellaris.initialize.constant.InitializeHandlerType.APPLICATIO
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 用于处理 {@link PostConstruct} 类型 初始化执行 抽象
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public abstract class AbstractApplicationPostConstructHandler implements InitializeHandler {
     

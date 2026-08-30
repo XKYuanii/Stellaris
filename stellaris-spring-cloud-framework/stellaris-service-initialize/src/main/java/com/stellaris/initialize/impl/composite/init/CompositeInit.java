@@ -8,7 +8,7 @@ import org.springframework.context.ConfigurableApplicationContext;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 组合模式初始化操作执行
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @AllArgsConstructor
 public class CompositeInit extends AbstractApplicationStartEventListenerHandler {

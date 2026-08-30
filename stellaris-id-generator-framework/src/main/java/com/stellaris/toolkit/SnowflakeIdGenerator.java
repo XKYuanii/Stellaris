@@ -14,7 +14,7 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 雪花算法
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Slf4j
 public class SnowflakeIdGenerator {

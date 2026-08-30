@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: Test service
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Slf4j
 @Service

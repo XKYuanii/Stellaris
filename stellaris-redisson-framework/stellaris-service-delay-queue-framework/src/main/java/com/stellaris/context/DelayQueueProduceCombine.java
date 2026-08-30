@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 延迟队列 发送者 分片选择
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public class DelayQueueProduceCombine {
     

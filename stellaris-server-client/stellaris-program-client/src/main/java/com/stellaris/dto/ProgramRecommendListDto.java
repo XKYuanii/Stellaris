@@ -6,7 +6,7 @@ import lombok.Data;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 节目推荐列表查询 dto
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @Schema(title="ProgramRecommendListDto", description ="节目推荐列表")

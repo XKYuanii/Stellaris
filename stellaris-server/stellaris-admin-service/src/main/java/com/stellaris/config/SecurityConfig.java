@@ -12,7 +12,7 @@ import static org.springframework.security.config.Customizer.withDefaults;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 服务监控权限 配置
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Configuration
 public class SecurityConfig {

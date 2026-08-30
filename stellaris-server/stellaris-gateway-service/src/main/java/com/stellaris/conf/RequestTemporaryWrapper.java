@@ -8,7 +8,7 @@ import java.util.Map;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 临时信息
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 public class RequestTemporaryWrapper {

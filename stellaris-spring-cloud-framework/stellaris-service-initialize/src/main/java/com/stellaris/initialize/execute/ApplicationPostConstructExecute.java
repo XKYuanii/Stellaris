@@ -10,7 +10,7 @@ import static com.stellaris.initialize.constant.InitializeHandlerType.APPLICATIO
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 用于处理 {@link PostConstruct} 应用程序启动事件。
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public class ApplicationPostConstructExecute extends AbstractApplicationExecute {
     

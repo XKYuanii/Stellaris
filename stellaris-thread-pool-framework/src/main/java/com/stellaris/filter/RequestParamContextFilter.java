@@ -16,7 +16,7 @@ import static com.stellaris.constant.Constant.TRACE_ID;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 链路过滤器
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 
 public class RequestParamContextFilter extends OncePerRequestFilter {

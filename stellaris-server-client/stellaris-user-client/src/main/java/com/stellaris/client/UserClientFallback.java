@@ -15,7 +15,7 @@ import java.util.List;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 用户服务 feign 异常
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Component
 public class UserClientFallback implements UserClient {

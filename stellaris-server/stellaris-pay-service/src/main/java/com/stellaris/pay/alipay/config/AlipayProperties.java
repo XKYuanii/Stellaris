@@ -6,7 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 支付宝支付相关配置
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @ConfigurationProperties(prefix = AlipayProperties.PREFIX)

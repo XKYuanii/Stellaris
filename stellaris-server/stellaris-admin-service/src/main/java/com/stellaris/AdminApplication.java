@@ -8,7 +8,7 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 监控服务启动
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @EnableAdminServer
 @EnableDiscoveryClient

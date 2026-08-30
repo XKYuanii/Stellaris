@@ -9,7 +9,7 @@ import java.io.Serializable;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 接口返回体基础类
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @Schema(title="ApiResponse", description ="数据响应规范结构")

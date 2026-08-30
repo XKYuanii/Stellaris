@@ -9,7 +9,7 @@ import java.util.Date;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: mybatisPlus更新填充
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Slf4j
 public class MybatisPlusMetaObjectHandler implements MetaObjectHandler {

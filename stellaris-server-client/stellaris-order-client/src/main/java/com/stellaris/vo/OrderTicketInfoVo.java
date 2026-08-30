@@ -8,7 +8,7 @@ import java.math.BigDecimal;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 购票订单信息 vo
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @Schema(title="OrderTicketInfoVo", description ="购票订单信息")

@@ -11,7 +11,7 @@ import java.util.Collections;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: mybatisPlus 代码生成器
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public class MybatisPlusGenerator {
     

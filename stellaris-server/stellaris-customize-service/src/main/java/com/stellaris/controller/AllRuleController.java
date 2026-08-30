@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 所有规则 控制层
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @RestController
 @RequestMapping("/allRule")

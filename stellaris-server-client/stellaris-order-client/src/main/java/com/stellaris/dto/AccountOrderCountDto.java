@@ -8,7 +8,7 @@ import lombok.Data;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 账户下某个节目的订单数量 dto
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @Schema(title="AccountOrderCountDto", description ="账户下某个节目的订单数量")

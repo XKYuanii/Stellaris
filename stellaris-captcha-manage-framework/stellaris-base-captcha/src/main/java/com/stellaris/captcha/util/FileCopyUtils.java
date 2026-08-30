@@ -13,7 +13,7 @@ import java.io.Writer;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: FileCopyUtils
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public class FileCopyUtils {
 

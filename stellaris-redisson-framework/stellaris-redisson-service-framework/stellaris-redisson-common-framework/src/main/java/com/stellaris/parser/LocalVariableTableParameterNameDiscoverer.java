@@ -26,7 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 此类在 6.1其实被废弃，但是只能这个类才能实现对 #对象.属性 的spel解析，所以还得加上
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public class LocalVariableTableParameterNameDiscoverer implements ParameterNameDiscoverer {
 

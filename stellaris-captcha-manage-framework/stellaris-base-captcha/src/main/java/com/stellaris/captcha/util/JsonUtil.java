@@ -12,7 +12,7 @@ import java.util.Map;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 替换掉fastjson，自定义实现相关方法   note: 该实现不具有通用性，仅用于本项目。
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public class JsonUtil {
 	private static final Logger logger = LoggerFactory.getLogger(JsonUtil.class);

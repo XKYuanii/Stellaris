@@ -10,7 +10,7 @@ import java.util.Collection;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 节目票档集合 dto
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @Schema(title="TicketCategoryListDto", description ="节目票档集合")

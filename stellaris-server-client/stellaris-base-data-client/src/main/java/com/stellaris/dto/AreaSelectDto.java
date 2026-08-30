@@ -10,7 +10,7 @@ import java.util.List;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 地区列表查询 dto
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @Schema(title="AreaSelectDto", description ="AreaSelectDto")

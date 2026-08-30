@@ -27,7 +27,7 @@ import static com.stellaris.repeatexecutelimit.constant.RepeatExecuteLimitConsta
  /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 防重复幂等 切面
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Slf4j
 @Aspect

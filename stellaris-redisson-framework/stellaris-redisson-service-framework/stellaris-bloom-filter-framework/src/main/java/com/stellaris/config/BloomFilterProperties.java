@@ -6,7 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 布隆过滤器 配置属性
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @ConfigurationProperties(prefix = BloomFilterProperties.PREFIX)

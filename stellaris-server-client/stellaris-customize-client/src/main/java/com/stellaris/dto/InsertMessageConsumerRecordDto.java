@@ -9,7 +9,7 @@ import lombok.Data;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 添加消息消费记录 dto
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @Schema(title="InsertMessageConsumerRecordDto", description ="添加消息消费记录")

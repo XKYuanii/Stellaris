@@ -32,7 +32,7 @@ import java.util.Optional;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 普通规则 service
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Service
 public class RuleService {

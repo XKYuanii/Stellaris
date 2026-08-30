@@ -12,7 +12,7 @@ import java.util.Map;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 支付回调通知 dto
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @Schema(title="NotifyDto", description ="支付回调通知")

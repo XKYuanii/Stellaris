@@ -6,7 +6,7 @@ import com.stellaris.entity.Rule;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 普通规则 mapper
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public interface RuleMapper extends BaseMapper<Rule> {
     

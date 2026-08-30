@@ -34,7 +34,7 @@ import static com.stellaris.core.DistributedLockConstants.PROGRAM_CATEGORY_LOCK;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 节目类型 service
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Service
 public class ProgramCategoryService extends ServiceImpl<ProgramCategoryMapper, ProgramCategory> {

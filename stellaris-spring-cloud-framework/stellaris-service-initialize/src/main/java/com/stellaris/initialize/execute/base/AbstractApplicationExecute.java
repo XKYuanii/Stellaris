@@ -10,7 +10,7 @@ import java.util.Map;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 用于处理应用程序启动执行的基类
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @AllArgsConstructor
 public abstract class AbstractApplicationExecute {

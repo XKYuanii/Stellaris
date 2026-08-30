@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: redisson通用配置
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @AutoConfigureBefore(value = {RedissonAutoConfigurationV2.class, RedissonAutoConfiguration.class})
 @EnableConfigurationProperties(RedissonBaseProperties.class)

@@ -9,7 +9,7 @@ import java.io.Serializable;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 支付回调结果 vo
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @Schema(title="NotifyVo", description ="交易状态结果")

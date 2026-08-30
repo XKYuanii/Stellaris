@@ -27,7 +27,7 @@ import static com.stellaris.captcha.service.impl.CaptchaConstant.TWO;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 滑动验证码
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public class BlockPuzzleCaptchaServiceImpl extends AbstractCaptchaService {
     

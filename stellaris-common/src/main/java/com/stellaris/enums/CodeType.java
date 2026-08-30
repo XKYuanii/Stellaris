@@ -3,7 +3,7 @@ package com.stellaris.enums;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 基础数据 code
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public enum CodeType {
     /**

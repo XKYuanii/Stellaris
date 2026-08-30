@@ -28,7 +28,7 @@ import java.util.Map;
  * 扩容路径示例：
  * - 2库4表 → 2库8表（只加表）
  * 
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Slf4j
 @Service

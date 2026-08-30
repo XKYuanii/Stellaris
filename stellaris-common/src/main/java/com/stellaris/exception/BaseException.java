@@ -3,7 +3,7 @@ package com.stellaris.exception;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 基础异常
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public class BaseException extends RuntimeException{
 	

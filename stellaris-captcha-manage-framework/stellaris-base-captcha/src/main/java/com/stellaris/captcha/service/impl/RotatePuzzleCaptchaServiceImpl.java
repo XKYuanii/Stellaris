@@ -13,7 +13,7 @@ import java.util.Properties;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 旋转验证码
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public class RotatePuzzleCaptchaServiceImpl extends AbstractCaptchaService {
 

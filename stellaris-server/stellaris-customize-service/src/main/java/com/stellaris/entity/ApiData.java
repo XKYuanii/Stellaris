@@ -9,7 +9,7 @@ import java.io.Serializable;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: api调用记录 实体
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @TableName("d_api_data")

@@ -43,7 +43,7 @@ import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.O
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 返回过滤器 参考 {@link org.springframework.cloud.gateway.filter.factory.rewrite.ModifyResponseBodyGatewayFilterFactory}
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Component
 @Slf4j

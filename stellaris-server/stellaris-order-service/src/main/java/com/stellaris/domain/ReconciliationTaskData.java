@@ -8,7 +8,7 @@ import java.util.Map;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 需要进行添加的数据
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @Schema(title="ReconciliationTaskData", description ="需要进行添加的数据")

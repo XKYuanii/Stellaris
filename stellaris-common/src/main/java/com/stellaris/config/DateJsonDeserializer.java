@@ -16,7 +16,7 @@ import java.util.regex.Pattern;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 自定义json序列化
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public class DateJsonDeserializer extends JsonDeserializer<Date> {
 	

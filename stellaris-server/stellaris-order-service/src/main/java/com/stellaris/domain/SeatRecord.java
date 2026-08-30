@@ -5,7 +5,7 @@ import lombok.Data;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: redis的操作记录(座位层)
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 public class SeatRecord {

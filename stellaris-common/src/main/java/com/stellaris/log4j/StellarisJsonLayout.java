@@ -39,7 +39,7 @@ import java.util.Map;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: Stellaris项目自定义 JSON 日志布局
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Plugin(name = "StellarisJsonLayout", category = Node.CATEGORY, elementType = Layout.ELEMENT_TYPE, printObject = true)
 public final class StellarisJsonLayout extends BaseJsonLayout {

@@ -42,7 +42,7 @@ import static com.stellaris.constant.Constant.TRACE_ID;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: JSON 日志布局基类
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 abstract class BaseJsonLayout extends AbstractStringLayout {
 

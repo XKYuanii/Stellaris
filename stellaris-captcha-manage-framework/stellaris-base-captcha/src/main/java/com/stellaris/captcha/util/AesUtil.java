@@ -16,7 +16,7 @@ import java.util.Base64;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: AesUtil
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public class AesUtil {
     /***

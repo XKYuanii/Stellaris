@@ -3,7 +3,7 @@ package com.stellaris.initialize.constant;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 初始化执行 不同策略类型
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public class InitializeHandlerType {
     

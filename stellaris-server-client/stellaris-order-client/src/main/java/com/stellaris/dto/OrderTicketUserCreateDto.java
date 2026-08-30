@@ -12,7 +12,7 @@ import java.util.Date;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 购票人订单 dto
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @Schema(title="OrderTicketUserCreateDto", description ="购票人订单创建")

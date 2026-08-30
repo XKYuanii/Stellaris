@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Configuration;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 服务监控 配置
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Configuration
 public class MonitorServerConfig {

@@ -9,7 +9,7 @@ import java.util.Optional;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: Gateway上下文获取实现
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public class GatewayContextHandler implements ContextHandler {
     @Override

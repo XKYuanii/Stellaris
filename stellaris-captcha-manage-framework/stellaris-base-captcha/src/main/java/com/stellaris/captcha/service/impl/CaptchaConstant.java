@@ -3,7 +3,7 @@ package com.stellaris.captcha.service.impl;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 验证码常量
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public class CaptchaConstant {
     

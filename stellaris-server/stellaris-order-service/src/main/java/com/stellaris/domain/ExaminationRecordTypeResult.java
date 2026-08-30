@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: redis和数据对账结果(记录类型维度)
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @NoArgsConstructor

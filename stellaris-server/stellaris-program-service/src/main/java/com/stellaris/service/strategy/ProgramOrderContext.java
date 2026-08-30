@@ -13,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 节目订单上下文
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Component
 public class ProgramOrderContext {

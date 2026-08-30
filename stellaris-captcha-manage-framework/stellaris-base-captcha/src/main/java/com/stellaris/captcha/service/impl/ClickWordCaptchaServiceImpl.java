@@ -32,7 +32,7 @@ import static com.stellaris.captcha.service.impl.CaptchaConstant.TTF_ENDS_WITH;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 点选文字验证码
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public class ClickWordCaptchaServiceImpl extends AbstractCaptchaService {
     

@@ -26,7 +26,7 @@ import java.util.Set;
  * - 当前：取bit2作为库索引（右移2位后取低1位）
  * - 扩容后：取bit3-5作为库索引（右移3位后取低3位）
  * 
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public class DatabaseOrderComplexGeneArithmetic implements ComplexKeysShardingAlgorithm<Long> {
     /**

@@ -15,7 +15,7 @@ import java.nio.charset.Charset;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: StreamUtils
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public class StreamUtils {
     public static final int BUFFER_SIZE = 4096;

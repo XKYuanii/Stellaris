@@ -48,7 +48,7 @@ import static com.stellaris.core.DistributedLockConstants.PROGRAM_SHOW_TIME_LOCK
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 节目演出时间 service
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Service
 public class ProgramShowTimeService extends ServiceImpl<ProgramShowTimeMapper, ProgramShowTime> {

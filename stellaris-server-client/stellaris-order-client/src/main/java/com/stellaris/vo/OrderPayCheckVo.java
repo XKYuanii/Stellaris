@@ -9,7 +9,7 @@ import java.util.Date;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 订单支付后状态检查 vo
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @Schema(title="OrderPayCheckVo", description ="订单支付后状态检查")

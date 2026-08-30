@@ -6,7 +6,7 @@ import com.stellaris.entity.DepthRule;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 深度规则 mapper
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public interface DepthRuleMapper extends BaseMapper<DepthRule> {
     

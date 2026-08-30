@@ -14,7 +14,7 @@ import java.util.Map;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 处理应用程序启动事件
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @AllArgsConstructor
 public class DelayQueueInitHandler implements ApplicationListener<ApplicationStartedEvent> {

@@ -8,7 +8,7 @@ import org.springframework.web.server.ServerWebExchange;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: Gateway的ServerWebExchange数据存放
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Setter
 @Getter

@@ -15,7 +15,7 @@ import java.nio.charset.StandardCharsets;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: request包装
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public class CustomizeRequestWrapper extends HttpServletRequestWrapper {
     

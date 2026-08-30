@@ -17,7 +17,7 @@ import java.util.function.Function;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 节目演出时间本地缓存
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Component
 public class LocalCacheProgramShowTime {

@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 购票人订单 service
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Service
 public class OrderTicketUserService extends ServiceImpl<OrderTicketUserMapper, OrderTicketUser> {

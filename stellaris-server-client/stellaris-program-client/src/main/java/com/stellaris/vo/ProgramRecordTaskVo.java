@@ -10,7 +10,7 @@ import java.util.Date;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 节目对账记录任务 vo
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @Schema(title="ProgramRecordTaskVo", description ="节目对账记录任务")

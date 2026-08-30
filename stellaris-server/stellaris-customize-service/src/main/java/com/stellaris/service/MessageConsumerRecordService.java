@@ -24,7 +24,7 @@ import java.util.Objects;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 消息消费服务实现层
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Service
 public class MessageConsumerRecordService extends ServiceImpl<MessageConsumerRecordMapper, MessageConsumerRecord> {

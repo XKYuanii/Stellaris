@@ -11,7 +11,7 @@ import java.math.BigDecimal;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 节目座位相关信息 dto
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @Schema(title="SeatBatchRelateInfoAddDto", description ="节目座位相关信息批量添加")

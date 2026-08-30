@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 节目 控制层(内部rpc调用)
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @RestController
 @RequestMapping("/program/interior")

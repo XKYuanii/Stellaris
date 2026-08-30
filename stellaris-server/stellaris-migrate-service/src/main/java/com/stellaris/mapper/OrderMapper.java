@@ -10,7 +10,7 @@ import java.util.List;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 订单 mapper
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 public interface OrderMapper extends BaseMapper<Order> {
     

@@ -10,7 +10,7 @@ import java.util.List;
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 节目座位添加 dto
- * @author: 阿星不是程序员
+ * @author: xz_y
  **/
 @Data
 @Schema(title="SeatBatchAddDto", description ="节目座位批量添加")
