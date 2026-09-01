@@ -107,24 +107,6 @@ rules:
             shardingColumn: program_id
             # 使用id分表算法
             shardingAlgorithmName: tableTicketCategoryModModel
-      # 对d_program_record_task表进行分库分表
-      d_program_record_task:
-        # 库为stellaris_program_0 stellaris_program_1 表为d_program_record_task_0 至 d_program_record_task_1
-        actualDataNodes: ds_${0..1}.d_program_record_task_${0..1}
-        # 分库策略
-        databaseStrategy:
-          standard:
-            # 使用create_time作为分片键
-            shardingColumn: create_time
-            # 使用create_time分库算法
-            shardingAlgorithmName: databaseProgramRecordTaskModModel
-        # 分表策略
-        tableStrategy:
-          standard:
-            # 使用create_time作为分片键
-            shardingColumn: create_time
-            # 使用create_time分表算法
-            shardingAlgorithmName: tableProgramRecordTaskModModel
       # 订单库存操作幂等表，与座位和票档使用相同节目分片
       d_order_inventory_operation:
         actualDataNodes: ds_${0..1}.d_order_inventory_operation_${0..1}
@@ -191,18 +173,6 @@ rules:
         type: INLINE
         props:
           algorithm-expression: d_ticket_category_${(program_id.intdiv(2)) % 2}
-      # d_program_record_task表分库算法 - 使用create_time的hashCode低位(bit0)
-      databaseProgramRecordTaskModModel:
-        type: INLINE
-        props:
-          algorithm-expression: ds_${Math.abs(create_time.hashCode()) % 2}
-          allow-range-query-with-inline-sharding: true
-      # d_program_record_task表分表算法 - 使用create_time的hashCode次低位(bit1)
-      tableProgramRecordTaskModModel:
-        type: INLINE
-        props:
-          algorithm-expression: d_program_record_task_${(Math.abs(create_time.hashCode()).intdiv(2)) % 2}
-          allow-range-query-with-inline-sharding: true
       databaseOrderInventoryOperationModModel:
         type: INLINE
         props:
@@ -213,4 +183,4 @@ rules:
           algorithm-expression: d_order_inventory_operation_${(program_id.intdiv(2)) % 2}
 props:
   # 打印真实sql
-  sql-show: true
+  sql-show: false

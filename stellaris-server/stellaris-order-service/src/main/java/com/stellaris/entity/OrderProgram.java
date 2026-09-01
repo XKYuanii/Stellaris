@@ -34,13 +34,4 @@ public class OrderProgram extends BaseTableData implements Serializable {
      * */
     private Long orderNumber;
 
-    /**
-     * 记录id
-     */
-    private Long identifierId;
-
-    /**
-     * 处理状态 1:未处理 2:已处理
-     */
-    private Integer handleStatus;
 }

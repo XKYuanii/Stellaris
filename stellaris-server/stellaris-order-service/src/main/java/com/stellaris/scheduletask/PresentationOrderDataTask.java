@@ -62,7 +62,7 @@ public class PresentationOrderDataTask {
         BusinessThreadPool.execute( () -> {
             try {
                 log.info("订单服务定时任务重置执行");
-                //真实删除所有的订单和购票人订单，购票人订单记录(Stellaris普通版本没有这步)
+                //真实删除所有订单及购票人订单
                 orderService.delOrderAndOrderTicketUser();
                 //模拟创建订单
                 simulationCreateOrder();
@@ -84,10 +84,9 @@ public class PresentationOrderDataTask {
         //模拟废弃订单数据
         OrderCreateMq orderCreateMq = new OrderCreateMq();
         orderCreateMq.setCreateOrderTime(DateUtils.now());
-        orderCreateMq.setIdentifierId(1421864797540605952L);
+        orderCreateMq.setIntentId("presentation-discard-order");
         orderCreateMq.setOrderNumber(1965791442215448582L);
         orderCreateMq.setOrderPrice(new BigDecimal(2000));
-        orderCreateMq.setOrderVersion(4);
         orderCreateMq.setProgramId(34L);
         orderCreateMq.setProgramItemPicture("https://s21.ax1x.com/2024/06/07/pkYzl9J.jpg");
         orderCreateMq.setProgramPermitChooseSeat(0);

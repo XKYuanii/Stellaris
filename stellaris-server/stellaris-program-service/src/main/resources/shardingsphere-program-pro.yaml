@@ -70,16 +70,6 @@ rules:
           standard:
             shardingColumn: program_id
             shardingAlgorithmName: tableTicketCategoryModModel
-      d_program_record_task:
-        actualDataNodes: ds_${0..1}.d_program_record_task_${0..1}
-        databaseStrategy:
-          standard:
-            shardingColumn: create_time
-            shardingAlgorithmName: databaseProgramRecordTaskModModel
-        tableStrategy:
-          standard:
-            shardingColumn: create_time
-            shardingAlgorithmName: tableProgramRecordTaskModModel      
       d_order_inventory_operation:
         actualDataNodes: ds_${0..1}.d_order_inventory_operation_${0..1}
         databaseStrategy:
@@ -133,16 +123,6 @@ rules:
         type: INLINE
         props:
           algorithm-expression: d_ticket_category_${(program_id.intdiv(2)) % 2}
-      databaseProgramRecordTaskModModel:
-        type: INLINE
-        props:
-          algorithm-expression: ds_${Math.abs(create_time.hashCode()) % 2}
-          allow-range-query-with-inline-sharding: true
-      tableProgramRecordTaskModModel:
-        type: INLINE
-        props:
-          algorithm-expression: d_program_record_task_${(Math.abs(create_time.hashCode()).intdiv(2)) % 2}
-          allow-range-query-with-inline-sharding: true
       databaseOrderInventoryOperationModModel:
         type: INLINE
         props:
@@ -152,4 +132,4 @@ rules:
         props:
           algorithm-expression: d_order_inventory_operation_${(program_id.intdiv(2)) % 2}
 props:
-  sql-show: true
+  sql-show: false

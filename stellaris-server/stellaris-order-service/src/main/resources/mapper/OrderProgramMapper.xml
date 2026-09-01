@@ -22,6 +22,5 @@
     <delete id="relDelOrderProgram">
         delete
         from d_order_program
-        where handle_status in (1,2)
     </delete>
 </mapper>

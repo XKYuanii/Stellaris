@@ -2,7 +2,6 @@ package com.stellaris.client;
 
 import com.stellaris.common.ApiResponse;
 import com.stellaris.dto.AccountOrderCountDto;
-import com.stellaris.dto.OrderCreateDto;
 import com.stellaris.dto.ReferenceOrderStateQueryDto;
 import com.stellaris.enums.BaseCode;
 import com.stellaris.vo.AccountOrderCountVo;
@@ -18,11 +17,6 @@ import java.util.List;
  **/
 @Component
 public class OrderClientFallback implements OrderClient {
-    
-    @Override
-    public ApiResponse<String> create(final OrderCreateDto orderCreateDto) {
-        return ApiResponse.error(BaseCode.SYSTEM_ERROR);
-    }
     
     @Override
     public ApiResponse<AccountOrderCountVo> accountOrderCount(final AccountOrderCountDto dto) {

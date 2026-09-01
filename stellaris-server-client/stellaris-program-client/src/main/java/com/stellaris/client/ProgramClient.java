@@ -2,7 +2,6 @@ package com.stellaris.client;
 
 import com.stellaris.common.ApiResponse;
 import com.stellaris.dto.*;
-import com.stellaris.vo.ProgramRecordTaskVo;
 import com.stellaris.vo.TicketCategoryDetailVo;
 import jakarta.validation.Valid;
 import org.springframework.cloud.openfeign.FeignClient;
@@ -46,39 +45,7 @@ public interface ProgramClient {
     @PostMapping(value = "/program/all/list")
     ApiResponse<List<Long>> allList();
     
-    /**
-     * 获取节目对账记录任务集合
-     * @param programRecordTaskListDto 参数
-     * @return 结果
-     * */
-    @PostMapping(value = "/program/record/task/select")
-    ApiResponse<List<ProgramRecordTaskVo>> select(ProgramRecordTaskListDto programRecordTaskListDto);
-    
-    /**
-     * 修改节目对账记录任务集合
-     * @param programRecordTaskUpdateDto 参数
-     * @return 结果
-     * */
-    @PostMapping(value = "/program/record/task/update")
-    ApiResponse<Integer> update(ProgramRecordTaskUpdateDto programRecordTaskUpdateDto);
-    
-    /**
-     * 添加节目对账记录任务
-     * @param orderTicketUserRecordAddDto 参数
-     * @return 结果
-     * */
-    @PostMapping(value = "program/record/task/add")
-    ApiResponse<Integer> add(ProgramRecordTaskAddDto orderTicketUserRecordAddDto);
-    
-    /**
-     * 订单支付成功或者取消订单后对节目服务库的相关操作
-     * @param programOperateDataDto 参数
-     * @return 结果
-     */
-    @PostMapping(value = "/program/interior/operate/program/data")
-    ApiResponse<Boolean> operateProgramData(ProgramOperateDataDto programOperateDataDto);
-
-    /** v5 支付/取消同时推进数据库库存和新 Redis 座位模型。 */
+    /** 支付/取消同时推进数据库库存和 Redis 座位模型。 */
     @PostMapping(value = "/program/interior/reference/reservation/transition")
     ApiResponse<Boolean> operateReferenceReservation(ProgramOperateDataDto programOperateDataDto);
 

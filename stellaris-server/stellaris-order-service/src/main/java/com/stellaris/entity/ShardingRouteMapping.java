@@ -31,7 +31,7 @@ public class ShardingRouteMapping extends BaseTableData implements Serializable 
     
     /**
      * 物理表后缀（0-7，适用于所有表类型）
-     * 适用于：d_order_{suffix}、d_order_ticket_user_{suffix}、d_order_ticket_user_record_{suffix}
+     * 适用于：d_order_{suffix}、d_order_ticket_user_{suffix}
      */
     private Integer physicalTableSuffix;
     

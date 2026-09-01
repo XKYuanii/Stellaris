@@ -40,7 +40,6 @@ public class ReferenceOrderStateQueryService {
         state.setOrderNumber(order.getOrderNumber());
         state.setProgramId(order.getProgramId());
         state.setOrderStatus(order.getOrderStatus());
-        state.setOrderVersion(order.getOrderVersion());
         state.setCreateOrderTime(order.getCreateOrderTime());
         return state;
     }

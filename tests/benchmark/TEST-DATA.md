@@ -56,7 +56,6 @@ user (user_base + n)
 
 - `stellaris_order_0/1.d_order_0..3`
 - `stellaris_order_0/1.d_order_ticket_user_0..3`
-- `stellaris_order_0/1.d_order_ticket_user_record_0..3`
 - `stellaris_order_0/1.d_order_program_0..1`
 - 含 `program_id` 的 `d_reservation_transition_event*`、`d_order_create_event*`、`d_order_create_dlt_record*`（实际存在情况由 information_schema 获取）
 - `stellaris_program_0/1.d_order_inventory_operation_0/1`

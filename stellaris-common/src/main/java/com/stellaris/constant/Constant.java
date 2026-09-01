@@ -1,7 +1,5 @@
 package com.stellaris.constant;
 
-import com.stellaris.enums.RecordType;
-
 /**
  * @program: Stellaris（星演）高并发票务平台。
  * @description: 常量
@@ -38,12 +36,6 @@ public class Constant {
     
     public static final String SERVER_GRAY = "${spring.cloud.nacos.discovery.metadata.gray:false}";
 
-    public static final String REDUCE = RecordType.REDUCE.getValue();
-    
-    public static final String CHANGE_STATUS = RecordType.CHANGE_STATUS.getValue();
-    
-    public static final String INCREASE = RecordType.INCREASE.getValue();
-    
     public static final String SKY_WALKING_TRACE_ID = "skyWalkingTraceId";
     
 }

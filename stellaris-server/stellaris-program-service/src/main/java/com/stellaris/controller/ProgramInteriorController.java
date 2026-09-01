@@ -35,13 +35,7 @@ public class ProgramInteriorController {
         return ApiResponse.ok(programService.operateSeatLockAndTicketCategoryRemainNumber(reduceRemainNumberDto));
     }
     
-    @Operation(summary  = "订单支付成功或者取消订单后对节目服务库的相关操作")
-    @PostMapping(value = "/operate/program/data")
-    public ApiResponse<Boolean> operateProgramData(@Valid @RequestBody ProgramOperateDataDto programOperateDataDto){
-        return ApiResponse.ok(programService.operateProgramData(programOperateDataDto));
-    }
-
-    @Operation(summary = "v5 支付或取消后的座位迁移")
+    @Operation(summary = "支付或取消后的座位迁移")
     @PostMapping(value = "/reference/reservation/transition")
     public ApiResponse<Boolean> operateReferenceReservation(@Valid @RequestBody ProgramOperateDataDto dto) {
         return ApiResponse.ok(referenceReservationTransitionService.transition(dto));

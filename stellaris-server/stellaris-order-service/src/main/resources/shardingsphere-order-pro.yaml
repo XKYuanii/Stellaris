@@ -39,16 +39,6 @@ rules:
           complex:
             shardingColumns: order_number,user_id
             shardingAlgorithmName: tableOrderTicketUserComplexGeneArithmetic
-      d_order_ticket_user_record:
-        actualDataNodes: ds_${0..1}.d_order_ticket_user_record_${0..3}
-        databaseStrategy:
-          complex:
-            shardingColumns: order_number,user_id
-            shardingAlgorithmName: databaseOrderTicketUserRecordComplexGeneArithmetic
-        tableStrategy:
-          complex:
-            shardingColumns: order_number,user_id
-            shardingAlgorithmName: tableOrderTicketUserRecordComplexGeneArithmetic
       d_reservation_transition_event:
         actualDataNodes: ds_${0..1}.d_reservation_transition_event_${0..3}
         databaseStrategy:
@@ -106,19 +96,6 @@ rules:
           sharding-count: 4
           strategy: complex
           algorithmClassName: com.stellaris.shardingsphere.TableOrderComplexGeneArithmetic
-      databaseOrderTicketUserRecordComplexGeneArithmetic:
-        type: CLASS_BASED
-        props:
-          sharding-count: 2
-          table-sharding-count: 4
-          strategy: complex
-          algorithmClassName: com.stellaris.shardingsphere.DatabaseOrderComplexGeneArithmetic
-      tableOrderTicketUserRecordComplexGeneArithmetic:
-        type: CLASS_BASED
-        props:
-          sharding-count: 4
-          strategy: complex
-          algorithmClassName: com.stellaris.shardingsphere.TableOrderComplexGeneArithmetic
       databaseOrderProgramModModel:
         type: INLINE
         props:
@@ -128,4 +105,4 @@ rules:
         props:
           algorithm-expression: d_order_program_${(program_id.intdiv(2)) % 2}
 props:
-  sql-show: true
+  sql-show: false

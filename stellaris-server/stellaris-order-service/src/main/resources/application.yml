@@ -92,7 +92,6 @@ mybatis-plus:
       logic-delete-value: 0
       logic-not-delete-value: 1
   configuration:
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
     local-cache-scope: statement
 feign:
   sentinel:

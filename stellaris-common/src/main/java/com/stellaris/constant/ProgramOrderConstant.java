@@ -15,8 +15,6 @@ public class ProgramOrderConstant {
     
     public static final TimeUnit DELAY_ORDER_CANCEL_TIME_UNIT = TimeUnit.MINUTES;
     
-    public static final String DELAY_OPERATE_PROGRAM_DATA_TOPIC = "d_delay_operate_program_data_topic";
-    
     /** 原始分库数量 */
     public static final int ORIGINAL_DATABASE_COUNT = 2;
     

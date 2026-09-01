@@ -2,7 +2,6 @@ package com.stellaris.client;
 
 import com.stellaris.common.ApiResponse;
 import com.stellaris.dto.AccountOrderCountDto;
-import com.stellaris.dto.OrderCreateDto;
 import com.stellaris.dto.ReferenceOrderStateQueryDto;
 import com.stellaris.vo.AccountOrderCountVo;
 import com.stellaris.vo.ReferenceOrderStateVo;
@@ -22,14 +21,6 @@ import static com.stellaris.constant.Constant.SPRING_INJECT_PREFIX_DISTINCTION_N
 @Component
 @FeignClient(value = SPRING_INJECT_PREFIX_DISTINCTION_NAME+"-"+"order-service",fallback = OrderClientFallback.class)
 public interface OrderClient {
-    
-    /**
-     * 创建订单
-     * @param dto 参数
-     * @return 结果
-     * */
-    @PostMapping("/order/create")
-    ApiResponse<String> create(OrderCreateDto dto);
     
     /**
      * 账户下某个节目的订单数量

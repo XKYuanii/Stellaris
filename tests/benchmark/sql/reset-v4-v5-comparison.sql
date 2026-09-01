@@ -17,9 +17,4 @@ DELETE FROM stellaris_program_0.d_order_inventory_operation_1 WHERE program_id=@
 DELETE FROM stellaris_program_1.d_order_inventory_operation_0 WHERE program_id=@program_id;
 DELETE FROM stellaris_program_1.d_order_inventory_operation_1 WHERE program_id=@program_id;
 
-DELETE FROM stellaris_program_0.d_program_record_task_0 WHERE program_id=@program_id;
-DELETE FROM stellaris_program_0.d_program_record_task_1 WHERE program_id=@program_id;
-DELETE FROM stellaris_program_1.d_program_record_task_0 WHERE program_id=@program_id;
-DELETE FROM stellaris_program_1.d_program_record_task_1 WHERE program_id=@program_id;
 COMMIT;
-

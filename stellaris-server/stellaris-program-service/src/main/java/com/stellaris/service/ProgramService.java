@@ -44,7 +44,6 @@ import com.stellaris.entity.TicketCategoryAggregate;
 import com.stellaris.enums.BaseCode;
 import com.stellaris.enums.BusinessStatus;
 import com.stellaris.enums.CompositeCheckType;
-import com.stellaris.enums.ProgramOrderVersion;
 import com.stellaris.enums.SellStatus;
 import com.stellaris.exception.StellarisFrameException;
 import com.stellaris.handler.BloomFilterHandler;
@@ -212,9 +211,6 @@ public class ProgramService extends ServiceImpl<ProgramMapper, Program> {
     
     @Autowired
     private ProgramDelCacheData programDelCacheData;
-    
-    @Autowired
-    private ProgramOrderService programOrderService;
     
     @Autowired
     private SeatService seatService;
@@ -777,79 +773,48 @@ public class ProgramService extends ServiceImpl<ProgramMapper, Program> {
                 !Objects.equals(programOperateDataDto.getSellStatus(),SellStatus.NO_SOLD.getCode())) {
             throw new StellarisFrameException(BaseCode.SEAT_OPERATE_IS_NOT_NOT_SOLD_OR_SOLD);
         }
-        Integer orderVersion = programOperateDataDto.getOrderVersion();
-        boolean v5Reservation = Objects.equals(orderVersion, ProgramOrderVersion.V5_REFERENCE.getValue());
-        boolean reservationModel = Objects.equals(orderVersion, ProgramOrderVersion.V4_VERSION.getValue())
-                || v5Reservation;
-        if (v5Reservation && (programOperateDataDto.getIntentId() == null
-                || programOperateDataDto.getIntentId().isBlank())) {
+        if (programOperateDataDto.getIntentId() == null
+                || programOperateDataDto.getIntentId().isBlank()) {
             throw new StellarisFrameException(BaseCode.PARAMETER_ERROR);
         }
-        // v1/v2/v3 是历史直售模型；v4/v5 都要求订单创建时座位已经处于 LOCK。
-        if (!reservationModel) {
-            for (Seat seat : seatList) {
-                if (Objects.equals(seat.getSellStatus(), SellStatus.SOLD.getCode())) {
-                    throw new StellarisFrameException(BaseCode.SEAT_SOLD);
-                }
+        boolean releasing = Objects.equals(programOperateDataDto.getSellStatus(), SellStatus.NO_SOLD.getCode());
+        boolean allAtTarget = seatList.stream().allMatch(seat ->
+                Objects.equals(seat.getSellStatus(), programOperateDataDto.getSellStatus())
+                        && (releasing && seat.getReservationId() == null
+                        || !releasing && Objects.equals(seat.getReservationId(), programOperateDataDto.getIntentId())));
+        if (allAtTarget) {
+            return true;
+        }
+        for (Seat seat : seatList) {
+            if (!Objects.equals(seat.getSellStatus(), SellStatus.LOCK.getCode())
+                    || !Objects.equals(seat.getReservationId(), programOperateDataDto.getIntentId())) {
+                throw new StellarisFrameException(BaseCode.SEAT_IS_NOT_NOT_LOCK);
             }
-            LambdaUpdateWrapper<Seat> seatLambdaUpdateWrapper =
-                    Wrappers.lambdaUpdate(Seat.class)
-                            .eq(Seat::getProgramId,programOperateDataDto.getProgramId())
-                            .in(Seat::getId, seatIdList);
-            Seat updateSeat = new Seat();
-            updateSeat.setSellStatus(SellStatus.SOLD.getCode());
-            seatMapper.update(updateSeat,seatLambdaUpdateWrapper);
+        }
+        LambdaUpdateWrapper<Seat> terminalUpdate = Wrappers.lambdaUpdate(Seat.class)
+                .eq(Seat::getProgramId, programOperateDataDto.getProgramId())
+                .in(Seat::getId, seatIdList)
+                .eq(Seat::getSellStatus, SellStatus.LOCK.getCode())
+                .eq(Seat::getReservationId, programOperateDataDto.getIntentId())
+                .set(Seat::getSellStatus, programOperateDataDto.getSellStatus())
+                .setSql("seat_version = COALESCE(seat_version, 0) + 1");
+        if (releasing) {
+            terminalUpdate.set(Seat::getReservationId, null);
+        }
+        int terminalUpdated = seatMapper.update(null, terminalUpdate);
+        if (terminalUpdated != seatIdList.size()) {
+            throw new StellarisFrameException(BaseCode.SEAT_UPDATE_REL_COUNT_NOT_EQUAL_PRESET_COUNT);
+        }
+        if (releasing) {
             List<TicketCategoryCountDto> ticketCategoryCountDtoList = programOperateDataDto.getTicketCategoryCountDtoList();
-            int updateRemainNumberCount =
-                    ticketCategoryMapper.batchUpdateRemainNumber(ticketCategoryCountDtoList,programOperateDataDto.getProgramId());
+            int updateRemainNumberCount = 0;
+            for (TicketCategoryCountDto ticketCategoryCountDto : ticketCategoryCountDtoList) {
+                updateRemainNumberCount = updateRemainNumberCount + ticketCategoryMapper.increaseRemainNumber(
+                        ticketCategoryCountDto.getCount(), ticketCategoryCountDto.getTicketCategoryId(),
+                        programOperateDataDto.getProgramId());
+            }
             if (updateRemainNumberCount != ticketCategoryCountDtoList.size()) {
                 throw new StellarisFrameException(BaseCode.UPDATE_TICKET_CATEGORY_COUNT_NOT_CORRECT);
-            }
-        }else {
-            boolean releasing = Objects.equals(programOperateDataDto.getSellStatus(), SellStatus.NO_SOLD.getCode());
-            boolean allAtTarget = seatList.stream().allMatch(seat ->
-                    Objects.equals(seat.getSellStatus(), programOperateDataDto.getSellStatus())
-                            && (!v5Reservation || releasing && seat.getReservationId() == null
-                            || !releasing && Objects.equals(seat.getReservationId(), programOperateDataDto.getIntentId())));
-            if (allAtTarget) {
-                return true;
-            }
-            // 首次执行只能由 LOCK 迁移；最终状态重复调用在上方直接幂等返回。
-            for (Seat seat : seatList) {
-                if (!Objects.equals(seat.getSellStatus(), SellStatus.LOCK.getCode())
-                        || v5Reservation && !Objects.equals(seat.getReservationId(), programOperateDataDto.getIntentId())) {
-                    throw new StellarisFrameException(BaseCode.SEAT_IS_NOT_NOT_LOCK);
-                }
-            }
-            LambdaUpdateWrapper<Seat> terminalUpdate = Wrappers.lambdaUpdate(Seat.class)
-                    .eq(Seat::getProgramId, programOperateDataDto.getProgramId())
-                    .in(Seat::getId, seatIdList)
-                    .eq(Seat::getSellStatus, SellStatus.LOCK.getCode())
-                    .set(Seat::getSellStatus, programOperateDataDto.getSellStatus())
-                    .setSql("seat_version = COALESCE(seat_version, 0) + 1");
-            if (v5Reservation) {
-                terminalUpdate.eq(Seat::getReservationId, programOperateDataDto.getIntentId());
-                if (releasing) {
-                    terminalUpdate.set(Seat::getReservationId, null);
-                }
-            }
-            int terminalUpdated = seatMapper.update(null, terminalUpdate);
-            if (terminalUpdated != seatIdList.size()) {
-                throw new StellarisFrameException(BaseCode.SEAT_UPDATE_REL_COUNT_NOT_EQUAL_PRESET_COUNT);
-            }
-            if (releasing) {
-                //订单取消的操作
-                List<TicketCategoryCountDto> ticketCategoryCountDtoList = programOperateDataDto.getTicketCategoryCountDtoList();
-                int updateRemainNumberCount = 0;
-                //把库存增加回去
-                for (TicketCategoryCountDto ticketCategoryCountDto : ticketCategoryCountDtoList) {
-                    updateRemainNumberCount = updateRemainNumberCount + ticketCategoryMapper.increaseRemainNumber(
-                            ticketCategoryCountDto.getCount(), ticketCategoryCountDto.getTicketCategoryId(),
-                            programOperateDataDto.getProgramId());
-                }
-                if (updateRemainNumberCount != ticketCategoryCountDtoList.size()) {
-                    throw new StellarisFrameException(BaseCode.UPDATE_TICKET_CATEGORY_COUNT_NOT_CORRECT);
-                }
             }
         }
         return true;

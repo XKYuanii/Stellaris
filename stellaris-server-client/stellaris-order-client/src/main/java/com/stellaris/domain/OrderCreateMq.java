@@ -21,7 +21,7 @@ public class OrderCreateMq {
     /** 可靠事件唯一标识，用于生产记录、消费幂等和故障追踪。 */
     private Long eventId;
 
-    /** v5 Redis reservation 归属标识；旧版本为空。 */
+    /** Redis reservation owner and end-to-end idempotency identity. */
     private String intentId;
 
     /** v5 服务端座位快照，随 Stream 事件传播，供故障定位和对账使用。 */
@@ -29,8 +29,6 @@ public class OrderCreateMq {
 
     /** Redis 预占失效时间；不是订单支付超时的最终裁决。 */
     private Date reservationExpireTime;
-    
-    private Long identifierId;
     
     private Long orderNumber;
  
@@ -57,7 +55,5 @@ public class OrderCreateMq {
     private Date createOrderTime;
     
     private List<OrderTicketUserCreateDto> orderTicketUserCreateDtoList;
-    
-    private Integer orderVersion;
     
 }

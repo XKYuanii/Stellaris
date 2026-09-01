@@ -16,7 +16,8 @@ import java.util.List;
 @Schema(title="ProgramOperateDataDto", description ="节目数据操作")
 public class ProgramOperateDataDto {
 
-    @Schema(name ="intentId", type ="String", description ="v5 Redis reservation 归属标识（兼容字段名）")
+    @Schema(name ="intentId", type ="String", description ="Redis reservation 归属及幂等标识",requiredMode= RequiredMode.REQUIRED)
+    @NotNull
     private String intentId;
     
     @Schema(name ="programId", type ="Long", description ="节目id",requiredMode= RequiredMode.REQUIRED)
@@ -35,7 +36,4 @@ public class ProgramOperateDataDto {
     @NotNull
     private Integer sellStatus;
     
-    @Schema(name ="orderVersion", type ="Long", description ="创建订单时的版本",requiredMode= RequiredMode.REQUIRED)
-    @NotNull
-    private Integer orderVersion;
 }

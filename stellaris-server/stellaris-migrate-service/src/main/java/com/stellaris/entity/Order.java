@@ -32,11 +32,6 @@ public class Order extends BaseTableData implements Serializable {
     private Long orderNumber;
     
     /**
-     * 记录id
-     */
-    private Long identifierId;
-
-    /**
      * 节目表id
      */
     private Long programId;
@@ -99,13 +94,9 @@ public class Order extends BaseTableData implements Serializable {
     /**
      * 对账状态 1:未对账 -1:对账完成有问题 2:对账完成没有问题 3:对账有问题处理完毕
      */
-    private Integer reconciliationStatus;
-    
     /**
      * 创建订单的版本 1 2 3 4
      * */
-    private Integer orderVersion;
-
     /**
      * 生成订单时间
      */

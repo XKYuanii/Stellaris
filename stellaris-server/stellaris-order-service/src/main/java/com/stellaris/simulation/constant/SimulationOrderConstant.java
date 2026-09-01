@@ -13,5 +13,5 @@ public class SimulationOrderConstant {
     
     public static final String PROGRAM_DETAIL_URL = "http://127.0.0.1:6086/program/detail";
     
-    public static final String CREATE_PROGRAM_ORDER_URL = "http://127.0.0.1:6086/program/order/create/v4";
+    public static final String CREATE_PROGRAM_ORDER_URL = "http://127.0.0.1:6086/program/order/create/v5";
 }

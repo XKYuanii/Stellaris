@@ -3,7 +3,6 @@ package com.stellaris.service.scheduletask;
 import cn.hutool.core.collection.CollectionUtil;
 import com.stellaris.BusinessThreadPool;
 import com.stellaris.dto.ProgramResetExecuteDto;
-import com.stellaris.mapper.ProgramRecordTaskMapper;
 import com.stellaris.service.ProgramService;
 import com.stellaris.service.init.ProgramElasticsearchInitData;
 import com.stellaris.service.init.ProgramShowTimeRenewal;
@@ -36,9 +35,6 @@ public class PresentationProgramDataTask {
     @Autowired
     private ProgramElasticsearchInitData programElasticsearchInitData;
     
-    @Autowired
-    private ProgramRecordTaskMapper programRecordTaskMapper;
-    
     
     @Scheduled(cron = "0 0 23 * * ?")
     public void executeTask(){
@@ -54,8 +50,6 @@ public class PresentationProgramDataTask {
                         programService.resetExecute(programResetExecuteDto);
                     }
                 }
-                //真实删除节目对账记录任务数据(Stellaris普通版本没有这步)
-                programRecordTaskMapper.relDelProgramRecordTask();
                 //将节目的演出时间更新，并删除相关缓存，如果更新了演出时间，则删除elasticsearch的索引
                 programShowTimeRenewal.executeInit(applicationContext);
                 //重新初始化elasticsearch数据

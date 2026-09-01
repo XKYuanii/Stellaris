@@ -50,11 +50,11 @@ public class DelayCancelLeaseWorker {
  @Scheduled(fixedDelayString="${delay-cancel-lease.db-scan-fixed-delay-ms:60000}") public void scanDatabaseFallback(){
   if(!enabled)return; long cutoff=System.currentTimeMillis()-timeoutMs;
   java.util.List<Order> orders=orderMapper.selectList(Wrappers.lambdaQuery(Order.class)
-          .eq(Order::getOrderStatus,OrderStatus.NO_PAY.getCode()).eq(Order::getOrderVersion,5)
+          .eq(Order::getOrderStatus,OrderStatus.NO_PAY.getCode())
           .le(Order::getCreateOrderTime,new java.util.Date(cutoff))
           .gt(dbScanCursor.get()>0,Order::getId,dbScanCursor.get()).orderByAsc(Order::getId).last("LIMIT 100"));
   if(orders.isEmpty()&&dbScanCursor.get()>0){dbScanCursor.set(0);orders=orderMapper.selectList(Wrappers.lambdaQuery(Order.class)
-          .eq(Order::getOrderStatus,OrderStatus.NO_PAY.getCode()).eq(Order::getOrderVersion,5)
+          .eq(Order::getOrderStatus,OrderStatus.NO_PAY.getCode())
           .le(Order::getCreateOrderTime,new java.util.Date(cutoff)).orderByAsc(Order::getId).last("LIMIT 100"));}
   for(Order order:orders){
    Task task=new Task();task.setOrderNumber(order.getOrderNumber());task.setProgramId(order.getProgramId());queue.enqueue("order-cancel:"+order.getOrderNumber(),JSON.toJSONString(task),System.currentTimeMillis());

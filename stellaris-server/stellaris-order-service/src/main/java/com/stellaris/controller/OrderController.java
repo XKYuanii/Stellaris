@@ -1,22 +1,16 @@
 package com.stellaris.controller;
 
 import com.stellaris.common.ApiResponse;
-import com.stellaris.domain.ReconciliationTaskData;
 import com.stellaris.dto.AccountOrderCountDto;
 import com.stellaris.dto.OrderCancelDto;
-import com.stellaris.dto.OrderCreateDto;
 import com.stellaris.dto.OrderGetDto;
 import com.stellaris.dto.OrderListDto;
 import com.stellaris.dto.OrderPayCheckDto;
 import com.stellaris.dto.OrderPayDto;
 import com.stellaris.dto.OrderSimpleListDto;
-import com.stellaris.dto.ProgramGetDto;
 import com.stellaris.dto.ReferenceOrderStateQueryDto;
-import com.stellaris.properties.ApiVerify;
 import com.stellaris.scheduletask.PresentationOrderDataTask;
-import com.stellaris.scheduletask.ReconciliationTask;
 import com.stellaris.service.OrderService;
-import com.stellaris.service.OrderTaskService;
 import com.stellaris.service.reference.ReferenceOrderStateQueryService;
 import com.stellaris.service.reference.ReservationTransitionEventService;
 import com.stellaris.service.kafka.OrderCreateDltService;
@@ -53,17 +47,8 @@ public class OrderController {
     private OrderService orderService;
     
     @Autowired
-    private OrderTaskService orderTaskService;
-    
-    @Autowired
-    private ReconciliationTask reconciliationTask;
-    
-    @Autowired
     private PresentationOrderDataTask orderDataTask;
     
-    @Autowired
-    private ApiVerify apiVerify;
-
     @Autowired
     private ReferenceOrderStateQueryService referenceOrderStateQueryService;
 
@@ -74,12 +59,6 @@ public class OrderController {
     private OrderCreateDltService orderCreateDltService;
     
     
-    @Operation(summary  = "订单创建(不提供给前端调用，只允许内部program服务调用)")
-    @PostMapping(value = "/create")
-    public ApiResponse<String> create(@Valid @RequestBody OrderCreateDto orderCreateDto) {
-        return ApiResponse.ok(orderService.create(orderCreateDto));
-    }
-
     @Operation(summary = "v5 对账内部：批量查询订单状态")
     @PostMapping("/reference/reconciliation/state/batch")
     public ApiResponse<List<ReferenceOrderStateVo>> referenceStateBatch(@RequestBody ReferenceOrderStateQueryDto dto) {
@@ -134,21 +113,6 @@ public class OrderController {
         return ApiResponse.ok(orderService.initiateCancel(orderCancelDto));
     }
 
-    @Operation(summary  = "对账任务执行")
-    @PostMapping(value = "/reconciliation/task")
-    public ApiResponse<ReconciliationTaskData> reconciliationTask(@Valid @RequestBody ProgramGetDto programGetDto) {
-        apiVerify.verifyApi();
-        return ApiResponse.ok(orderTaskService.reconciliationTask(programGetDto.getId()));
-    }
-    
-    @Operation(summary  = "对账任务执行(全部)")
-    @PostMapping(value = "/reconciliation/task/all")
-    public ApiResponse<ReconciliationTaskData> reconciliationTaskAll() {
-        apiVerify.verifyApi();
-        reconciliationTask.reconciliationTask();
-        return ApiResponse.ok();
-    }
-    
     @Operation(summary  = "通过订单编号或者用户id查询订单列表")
     @PostMapping(value = "/simple/list")
     public ApiResponse<List<OrderListVo>> simpleList(@Valid @RequestBody OrderSimpleListDto orderSimpleListDto) {

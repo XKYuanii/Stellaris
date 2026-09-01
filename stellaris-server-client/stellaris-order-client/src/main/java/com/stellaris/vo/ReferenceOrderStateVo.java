@@ -14,6 +14,5 @@ public class ReferenceOrderStateVo implements Serializable {
     private Long orderNumber;
     private Long programId;
     private Integer orderStatus;
-    private Integer orderVersion;
     private Date createOrderTime;
 }
