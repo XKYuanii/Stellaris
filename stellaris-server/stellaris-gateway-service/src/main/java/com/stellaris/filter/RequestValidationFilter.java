@@ -49,6 +49,7 @@ import static com.stellaris.constant.Constant.GRAY_PARAMETER;
 import static com.stellaris.constant.Constant.TRACE_ID;
 import static com.stellaris.constant.GatewayConstant.BUSINESS_BODY;
 import static com.stellaris.constant.GatewayConstant.CODE;
+import static com.stellaris.constant.GatewayConstant.DEMO_USER_ID;
 import static com.stellaris.constant.GatewayConstant.ENCRYPT;
 import static com.stellaris.constant.GatewayConstant.NO_VERIFY;
 import static com.stellaris.constant.GatewayConstant.PROGRAM_ID_HEADER;
@@ -113,6 +114,7 @@ public class RequestValidationFilter implements GlobalFilter, Ordered {
             ServerHttpRequest sanitized = request.mutate().headers(httpHeaders -> {
                 // userId/code 只能由本次网关校验结果产生，不能沿用客户端自带值。
                 httpHeaders.remove(USER_ID);
+                httpHeaders.remove(DEMO_USER_ID);
                 httpHeaders.remove(CODE);
                 httpHeaders.remove(PROGRAM_ID_HEADER);
                 map.forEach(httpHeaders::set);
@@ -210,6 +212,10 @@ public class RequestValidationFilter implements GlobalFilter, Ordered {
             }
             
             requestBody = bodyContent.get(BUSINESS_BODY);
+        } else if (allowNormalAccess && VERIFY_VALUE.equals(noVerify)) {
+            // This explicit header exists only for isolated local demos. Consume it at
+            // the Gateway and rebuild the canonical downstream userId header.
+            userId = positiveLong(request.getHeaders().getFirst(DEMO_USER_ID));
         }
         Map<String,String> map = new HashMap<>(4);
         map.put(REQUEST_BODY,requestBody);
@@ -238,6 +244,15 @@ public class RequestValidationFilter implements GlobalFilter, Ordered {
             return null;
         }
     }
+
+    static String positiveLong(String value) {
+        try {
+            long parsed = value == null ? -1 : Long.parseLong(value);
+            return parsed > 0 ? String.valueOf(parsed) : null;
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
     /**
      * 将网关层request请求头中的重要参数传递给后续的微服务中
      */
@@ -251,6 +266,7 @@ public class RequestValidationFilter implements GlobalFilter, Ordered {
                 HttpHeaders newHeaders = new HttpHeaders();
                 newHeaders.putAll(exchange.getRequest().getHeaders());
                 newHeaders.remove(USER_ID);
+                newHeaders.remove(DEMO_USER_ID);
                 newHeaders.remove(CODE);
                 newHeaders.remove(PROGRAM_ID_HEADER);
                 newHeaders.remove(HttpHeaders.TRANSFER_ENCODING);

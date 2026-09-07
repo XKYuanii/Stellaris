@@ -72,6 +72,10 @@ spring:
 api:
   limit:
     paths: /**/customize/test/test   
+# Signed/encrypted access is the default. Set this only for an isolated local demo.
+allow:
+  normal:
+    access: ${STELLARIS_ALLOW_NORMAL_ACCESS:false}
 gateway:
   bulkhead:
     # 本机下游并发隔离；不是 QPS 限流。生产值应由压测和下游连接池容量确定。
@@ -145,11 +149,11 @@ management:
       application: gateway-service
   endpoint:
     health:
-      show-details: always
+      show-details: when_authorized
   endpoints:
     web:
       exposure:
-        include: '*'
+        include: health,info,prometheus
   health:
     elasticsearch:
       enabled: false

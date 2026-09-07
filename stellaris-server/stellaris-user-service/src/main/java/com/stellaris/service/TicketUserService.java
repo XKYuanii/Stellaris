@@ -47,7 +47,8 @@ public class TicketUserService extends ServiceImpl<TicketUserMapper, TicketUser>
     @Autowired
     private RedisCache redisCache;
     
-    public List<TicketUserVo> list(TicketUserListDto ticketUserListDto) {
+    public List<TicketUserVo> list(TicketUserListDto ticketUserListDto, Long currentUserId) {
+        ticketUserListDto.setUserId(currentUserId);
         //先从缓存中查询
         List<TicketUserVo> ticketUserVoList = redisCache.getValueIsList(RedisKeyBuild.createRedisKey(
                 RedisKeyManage.TICKET_USER_LIST, ticketUserListDto.getUserId()), TicketUserVo.class);
@@ -61,8 +62,9 @@ public class TicketUserService extends ServiceImpl<TicketUserMapper, TicketUser>
     }
     
     @Transactional(rollbackFor = Exception.class)
-    public void add(TicketUserDto ticketUserDto) {
-        User user = userMapper.selectById(ticketUserDto.getUserId());
+    public void add(TicketUserDto ticketUserDto, Long currentUserId) {
+        ticketUserDto.setUserId(currentUserId);
+        User user = userMapper.selectById(currentUserId);
         if (Objects.isNull(user)) {
             throw new StellarisFrameException(BaseCode.USER_EMPTY);
         }
@@ -81,13 +83,16 @@ public class TicketUserService extends ServiceImpl<TicketUserMapper, TicketUser>
         delTicketUserVoListCache(String.valueOf(ticketUserDto.getUserId()));
     }
     @Transactional(rollbackFor = Exception.class)
-    public void delete(TicketUserIdDto ticketUserIdDto) {
-        TicketUser ticketUser = ticketUserMapper.selectById(ticketUserIdDto.getId());
+    public void delete(TicketUserIdDto ticketUserIdDto, Long currentUserId) {
+        LambdaQueryWrapper<TicketUser> ownedTicketUser = Wrappers.lambdaQuery(TicketUser.class)
+                .eq(TicketUser::getId, ticketUserIdDto.getId())
+                .eq(TicketUser::getUserId, currentUserId);
+        TicketUser ticketUser = ticketUserMapper.selectOne(ownedTicketUser);
         if (Objects.isNull(ticketUser)) {
             throw new StellarisFrameException(BaseCode.TICKET_USER_EMPTY);
         }
-        ticketUserMapper.deleteById(ticketUserIdDto.getId());
-        delTicketUserVoListCache(String.valueOf(ticketUser.getUserId()));
+        ticketUserMapper.delete(ownedTicketUser);
+        delTicketUserVoListCache(String.valueOf(currentUserId));
     }
     
     public void delTicketUserVoListCache(String userId){

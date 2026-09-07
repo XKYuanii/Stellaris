@@ -34,7 +34,9 @@ try {
         $jtl = Join-Path $repositoryRoot "output\jmeter\functional-$($scenario.name)-$runId.jtl"
         $log = Join-Path $repositoryRoot "output\jmeter\functional-$($scenario.name)-$runId.log"
         $report = Join-Path $repositoryRoot "output\jmeter\functional-$($scenario.name)-$runId-html"
-        & $jmeter -n -t $jmx '-Jhost=127.0.0.1' '-Jport=6086' '-Jpath=/program/order/create/v5' `
+        # The functional check exercises the public boundary. Start Gateway with
+        # STELLARIS_ALLOW_NORMAL_ACCESS=true only in this isolated local environment.
+        & $jmeter -n -t $jmx '-Jhost=127.0.0.1' '-Jport=6085' '-Jpath=/stellaris/program/program/order/create/v5' `
             '-JprogramId=900000' '-JticketCategoryId=900001' "-JdataFile=$dataFile" `
             "-Jthreads=$($scenario.threads)" '-Jloops=1' '-Jramp=1' -l $jtl -j $log -e -o $report
         if ($LASTEXITCODE -ne 0) { throw "JMeter scenario failed to execute: $($scenario.name)" }

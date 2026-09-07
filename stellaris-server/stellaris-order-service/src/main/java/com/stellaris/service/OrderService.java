@@ -149,6 +149,9 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
     @Autowired
     private ReservationTransitionEventService reservationTransitionEventService;
 
+    @Autowired
+    private OrderAccessService orderAccessService;
+
     /** v5 的未支付订单保留时间；提交后才写入 lease 队列。 */
     @Value("${delay-cancel-lease.timeout-ms:900000}")
     private long v5CancelTimeoutMs;
@@ -259,14 +262,9 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
         return true;
     }
     
-    public PayResultVo pay(OrderPayDto orderPayDto) {
+    public PayResultVo pay(OrderPayDto orderPayDto, Long currentUserId) {
         Long orderNumber = orderPayDto.getOrderNumber();
-        LambdaQueryWrapper<Order> orderLambdaQueryWrapper =
-                Wrappers.lambdaQuery(Order.class).eq(Order::getOrderNumber, orderNumber);
-        Order order = orderMapper.selectOne(orderLambdaQueryWrapper);
-        if (Objects.isNull(order)) {
-            throw new StellarisFrameException(BaseCode.ORDER_NOT_EXIST);
-        }
+        Order order = orderAccessService.requireOwnedOrder(orderNumber, currentUserId);
         if (Objects.equals(order.getOrderStatus(), OrderStatus.CANCEL.getCode())) {
             throw new StellarisFrameException(BaseCode.ORDER_CANCEL);
         }
@@ -320,17 +318,12 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
      * 支付后订单检查，以订单编号加锁，防止多次更新
      * */
     @ServiceLock(name = UPDATE_ORDER_STATUS_LOCK,keys = {"#orderPayCheckDto.orderNumber"})
-    public OrderPayCheckVo payCheck(OrderPayCheckDto orderPayCheckDto){
+    public OrderPayCheckVo payCheck(OrderPayCheckDto orderPayCheckDto, Long currentUserId){
         OrderPayCheckVo orderPayCheckVo = new OrderPayCheckVo();
         String payChannel = Optional.ofNullable(PayChannel.getRc(orderPayCheckDto.getPayChannelType()))
                 .map(PayChannel::getValue)
                 .orElseThrow(() -> new StellarisFrameException(BaseCode.PAY_CHANNEL_NOT_EXIST));
-        LambdaQueryWrapper<Order> orderLambdaQueryWrapper =
-                Wrappers.lambdaQuery(Order.class).eq(Order::getOrderNumber, orderPayCheckDto.getOrderNumber());
-        Order order = orderMapper.selectOne(orderLambdaQueryWrapper);
-        if (Objects.isNull(order)) {
-            throw new StellarisFrameException(BaseCode.ORDER_NOT_EXIST);
-        }
+        Order order = orderAccessService.requireOwnedOrder(orderPayCheckDto.getOrderNumber(), currentUserId);
         BeanUtil.copyProperties(order,orderPayCheckVo);
         if (Objects.equals(order.getOrderStatus(), OrderStatus.CANCEL.getCode())) {
             RefundDto refundDto = new RefundDto();
@@ -587,11 +580,12 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
         reservationTransitionEventService.enqueue(orderNumber, userId, dto);
     }
     
-    public List<OrderListVo> selectList(OrderListDto orderListDto) {
+    public List<OrderListVo> selectList(OrderListDto orderListDto, Long currentUserId) {
+        orderListDto.setUserId(currentUserId);
         List<OrderListVo> orderListVos = new ArrayList<>();
         LambdaQueryWrapper<Order> orderLambdaQueryWrapper = 
                 Wrappers.lambdaQuery(Order.class)
-                        .eq(Order::getUserId, orderListDto.getUserId())
+                        .eq(Order::getUserId, currentUserId)
                         .orderByDesc(Order::getCreateOrderTime);
         List<Order> orderList = orderMapper.selectList(orderLambdaQueryWrapper);
         if (CollectionUtil.isEmpty(orderList)) {
@@ -610,13 +604,8 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
         return orderListVos;
     }
     
-    public OrderGetVo get(OrderGetDto orderGetDto) {
-        LambdaQueryWrapper<Order> orderLambdaQueryWrapper =
-                Wrappers.lambdaQuery(Order.class).eq(Order::getOrderNumber, orderGetDto.getOrderNumber());
-        Order order = orderMapper.selectOne(orderLambdaQueryWrapper);
-        if (Objects.isNull(order)) {
-            throw new StellarisFrameException(BaseCode.ORDER_NOT_EXIST);
-        }
+    public OrderGetVo get(OrderGetDto orderGetDto, Long currentUserId) {
+        Order order = orderAccessService.requireOwnedOrder(orderGetDto.getOrderNumber(), currentUserId);
         LambdaQueryWrapper<OrderTicketUser> orderTicketUserLambdaQueryWrapper = 
                 Wrappers.lambdaQuery(OrderTicketUser.class).eq(OrderTicketUser::getOrderNumber, order.getOrderNumber());
         List<OrderTicketUser> orderTicketUserList = orderTicketUserMapper.selectList(orderTicketUserLambdaQueryWrapper);
@@ -746,12 +735,8 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
     @RepeatExecuteLimit(name = CANCEL_PROGRAM_ORDER,keys = {"#orderCancelDto.orderNumber"})
     @ServiceLock(name = UPDATE_ORDER_STATUS_LOCK,keys = {"#orderCancelDto.orderNumber"})
     @Transactional(rollbackFor = Exception.class)
-    public boolean initiateCancel(OrderCancelDto orderCancelDto){
-        Order order = orderMapper.selectOne(Wrappers.lambdaQuery(Order.class)
-                .eq(Order::getOrderNumber, orderCancelDto.getOrderNumber()));
-        if (Objects.isNull(order)) {
-            throw new StellarisFrameException(BaseCode.ORDER_NOT_EXIST);
-        }
+    public boolean initiateCancel(OrderCancelDto orderCancelDto, Long currentUserId){
+        Order order = orderAccessService.requireOwnedOrder(orderCancelDto.getOrderNumber(), currentUserId);
         if (!Objects.equals(order.getOrderStatus(), OrderStatus.NO_PAY.getCode())) {
             throw new StellarisFrameException(BaseCode.CAN_NOT_CANCEL);
         }

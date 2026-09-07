@@ -129,11 +129,11 @@ management:
       application: program-service
   endpoint:
     health:
-      show-details: always
+      show-details: when_authorized
   endpoints:
     web:
       exposure:
-        include: '*'
+        include: health,info,prometheus
   health:
     elasticsearch:
       enabled: false
@@ -145,6 +145,10 @@ jasypt:
   encryptor:
     password: bgtjkjl!%^sdc
     algorithm: PBEWithMD5AndDES
+stellaris:
+  management:
+    operations:
+      enabled: false
 elasticsearch:
   ip: ${STELLARIS_ELASTICSEARCH_URL:127.0.0.1:9200}
   userName: elastic

@@ -2,6 +2,8 @@
 
 本文只描述当前 v5/reference。项目是工程化面试原型，不填写未经压测验证的 QPS，不使用“零丢失”“Exactly Once”或“生产级强一致”。
 
+**项目性质：** 基于 JavaUp“大麦”票务教学项目的业务骨架进行个人工程化重构；简历中的个人工作仅指 v5 交易链路、可靠性闭环、网关治理、安全边界、测试与文档，不将上游基础业务声明为原创。
+
 ## 简历项目条目
 
 ### 星演高并发票务交易系统
@@ -13,6 +15,7 @@
 **个人工作：**
 
 - 设计分层准入：Gateway 从验签后业务体生成可信用户和节目维度，依次执行 USER、PROGRAM、GLOBAL Redis 令牌桶，限流通过后才进入本机并发舱壁，避免未经治理的洪峰直接占用交易容量。
+- 收紧用户与管理边界：业务服务只信任 Gateway 重建并由同步 Feign 透传的用户身份，创建订单拒绝正文身份不一致；支付、查单、取消、个人资料修改及购票人增删查均校验当前用户归属，运维重放与内部 Feign 接口默认关闭或由 Gateway 返回 404。
 - 将复杂选座拆成“Java 有界候选搜索 + Lua 最终原子确认”：Redis 以 ZSET/Hash 保存可售索引和元数据，Lua 只处理单次 1～6 个座位，在 O(k) 内完成价格、owner、账号限购、锁座和 `XADD`，不扫描全场。
 - 以 16 个 `{sale:shard}` Hash Tag 组织节目库存与 Stream，同一节目所有 Lua Key 保证同槽、跨节目分散槽位，解决 Redis Cluster 多键脚本 CROSSSLOT 与单槽集中过度的问题。
 - 构建 Redis Stream 到 Kafka 的至少一次闭环：Consumer Group 在 broker 确认后才 XACK，PEL 超时消息可重领，失败上限后原子进入 dead stream，并按原 eventId/orderNumber 显式重放；Kafka 消费端手动提交、重试并写 DLT 审计。

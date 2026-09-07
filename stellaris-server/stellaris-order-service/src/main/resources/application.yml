@@ -73,11 +73,9 @@ spring:
       group-id: create_order_data
       #是否自动提交offset
       enable-auto-commit: false
-      # 当kafka中没有初始offset或offset超出范围时将自动重置offset
-      # earliest:重置为分区中最小的offset;
-      # latest:重置为分区中最新的offset(消费分区中新产生的数据);
-      # none:只要有一个分区不存在已提交的offset,就抛出异常;
-      auto-offset-reset: latest
+      # Redis Stream 记录在 Kafka broker ACK 后才确认并删除。新消费组必须从
+      # Kafka 已有记录开始消费，否则切换 group-id 时可能跳过已经转发的订单事件。
+      auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
     listener:
@@ -115,11 +113,11 @@ management:
       application: order-service
   endpoint:
     health:
-      show-details: always
+      show-details: when_authorized
   endpoints:
     web:
       exposure:
-        include: '*'
+        include: health,info,prometheus
   health:
     elasticsearch:
       enabled: false
@@ -131,6 +129,10 @@ jasypt:
   encryptor:
     password: bgtjkjl!%^sdc
     algorithm: PBEWithMD5AndDES
+stellaris:
+  management:
+    operations:
+      enabled: false
 delay:
   queue:
     corePoolSize: 20                    # 核心线程数(订单服务负载更高)

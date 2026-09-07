@@ -229,6 +229,28 @@ function Get-StellarisBenchmarkOrderNumbers {
             Where-Object { $_ -match '^\d+$' })
 }
 
+function Get-StellarisBenchmarkOpenOrderOwners {
+    param(
+        [Parameter(Mandatory = $true)][string]$Container,
+        [Parameter(Mandatory = $true)][string]$Password
+    )
+    $programId = $script:StellarisBenchmarkProgramId
+    $selects = [System.Collections.Generic.List[string]]::new()
+    foreach ($database in 0..1) {
+        foreach ($table in 0..3) {
+            $selects.Add("SELECT order_number,user_id,order_status FROM stellaris_order_${database}.d_order_${table} WHERE program_id=$programId")
+        }
+    }
+    $query = "SELECT order_number,user_id FROM ($($selects -join ' UNION ALL ')) benchmark_orders WHERE order_status=1;"
+    $rows = @(Invoke-StellarisMySqlQuery -Container $Container -Password $Password -Query $query)
+    return @($rows | ForEach-Object {
+        $columns = "$_" -split "`t"
+        if ($columns.Count -eq 2 -and $columns[0] -match '^\d+$' -and $columns[1] -match '^\d+$') {
+            [pscustomobject]@{ orderNumber = $columns[0]; userId = $columns[1] }
+        }
+    })
+}
+
 function Get-StellarisBenchmarkOrderCount {
     param(
         [Parameter(Mandatory = $true)][string]$Container,

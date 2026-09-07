@@ -13,6 +13,9 @@ import com.stellaris.dto.UserUpdateDto;
 import com.stellaris.dto.UserUpdateEmailDto;
 import com.stellaris.dto.UserUpdateMobileDto;
 import com.stellaris.dto.UserUpdatePasswordDto;
+import com.stellaris.enums.BaseCode;
+import com.stellaris.exception.StellarisFrameException;
+import com.stellaris.security.CurrentRequestIdentity;
 import com.stellaris.service.UserService;
 import com.stellaris.vo.UserGetAndTicketUserListVo;
 import com.stellaris.vo.UserLoginVo;
@@ -38,6 +41,9 @@ public class UserController {
     
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private CurrentRequestIdentity currentRequestIdentity;
     
     @Operation(summary  = "查询(通过手机号)")
     @PostMapping(value = "/get/mobile")
@@ -48,6 +54,7 @@ public class UserController {
     @Operation(summary  = "查询(通过id)")
     @PostMapping(value = "/get/id")
     public ApiResponse<UserVo> getById(@Valid @RequestBody UserIdDto userIdDto){
+        requireMatchingUser(userIdDto.getId());
         return ApiResponse.ok(userService.getById(userIdDto));
     }
     
@@ -79,6 +86,7 @@ public class UserController {
     @Operation(summary  = "修改个人信息")
     @PostMapping(value = "/update")
     public ApiResponse<Void> update(@Valid @RequestBody UserUpdateDto userUpdateDto) {
+        requireMatchingUser(userUpdateDto.getId());
         userService.update(userUpdateDto);
         return ApiResponse.ok();
     }
@@ -86,6 +94,7 @@ public class UserController {
     @Operation(summary  = "修改密码")
     @PostMapping(value = "/update/password")
     public ApiResponse<Void> updatePassword(@Valid @RequestBody UserUpdatePasswordDto userUpdatePasswordDto) {
+        requireMatchingUser(userUpdatePasswordDto.getId());
         userService.updatePassword(userUpdatePasswordDto);
         return ApiResponse.ok();
     }
@@ -93,6 +102,7 @@ public class UserController {
     @Operation(summary  = "修改邮箱")
     @PostMapping(value = "/update/email")
     public ApiResponse<Void> updateEmail(@Valid @RequestBody UserUpdateEmailDto userUpdateEmailDto) {
+        requireMatchingUser(userUpdateEmailDto.getId());
         userService.updateEmail(userUpdateEmailDto);
         return ApiResponse.ok();
     }
@@ -100,6 +110,7 @@ public class UserController {
     @Operation(summary  = "修改手机号")
     @PostMapping(value = "/update/mobile")
     public ApiResponse<Void> updateMobile(@Valid @RequestBody UserUpdateMobileDto userUpdateMobileDto) {
+        requireMatchingUser(userUpdateMobileDto.getId());
         userService.updateMobile(userUpdateMobileDto);
         return ApiResponse.ok();
     }
@@ -107,6 +118,7 @@ public class UserController {
     @Operation(summary  = "实名认证")
     @PostMapping(value = "/authentication")
     public ApiResponse<Void> authentication(@Valid @RequestBody UserAuthenticationDto userAuthenticationDto) {
+        requireMatchingUser(userAuthenticationDto.getId());
         userService.authentication(userAuthenticationDto);
         return ApiResponse.ok();
     }
@@ -116,6 +128,15 @@ public class UserController {
     @PostMapping(value = "/get/user/ticket/list")
     public ApiResponse<UserGetAndTicketUserListVo> getUserAndTicketUserList(@Valid @RequestBody UserGetAndTicketUserListDto userGetAndTicketUserListDto) {
         return ApiResponse.ok(userService.getUserAndTicketUserList(userGetAndTicketUserListDto));
+    }
+
+    private Long requireMatchingUser(Long requestedUserId) {
+        Long currentUserId = currentRequestIdentity.requireUserId();
+        if (!currentUserId.equals(requestedUserId)) {
+            throw new StellarisFrameException(BaseCode.PARAMETER_ERROR.getCode(),
+                    "请求用户与登录用户不一致");
+        }
+        return currentUserId;
     }
     
     

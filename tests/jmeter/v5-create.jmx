@@ -69,6 +69,14 @@
             <stringProp name="Header.name">no_verify</stringProp>
             <stringProp name="Header.value">true</stringProp>
           </elementProp>
+          <elementProp name="userId" elementType="Header">
+            <stringProp name="Header.name">userId</stringProp>
+            <stringProp name="Header.value">${userId}</stringProp>
+          </elementProp>
+          <elementProp name="demoUserId" elementType="Header">
+            <stringProp name="Header.name">X-Stellaris-Demo-User-Id</stringProp>
+            <stringProp name="Header.value">${userId}</stringProp>
+          </elementProp>
           <elementProp name="token" elementType="Header">
             <stringProp name="Header.name">token</stringProp>
             <stringProp name="Header.value">${token}</stringProp>

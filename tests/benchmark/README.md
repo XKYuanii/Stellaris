@@ -26,7 +26,7 @@
 
 - 服务：Gateway `127.0.0.1:6085`，Program `127.0.0.1:6086`，Order `127.0.0.1:8081`。
 - V5 直连：`POST /program/order/create/v5`；Gateway：`POST /stellaris/program/program/order/create/v5`。
-- 真实 Header 名是 `token`，不是 `Authorization: Bearer`。本地独立压测可用 `no_verify: true` 绕过签名/token，但仍经过 Gateway 限流和舱壁。
+- 真实 Header 名是 `token`，不是 `Authorization: Bearer`。隔离本机经 Gateway 验证时可显式开启 `no_verify: true`，并携带 `X-Stellaris-Demo-User-Id`；该身份可伪造，不能用于联网或生产环境，但请求仍经过 Gateway 限流和舱壁。
 - 专用节目 `900000`，票档 `900001`，节目名“V5并发压测专用节目”，100×100 共 10000 座。
 - 1000 个用户及 1000 个观演人；ID 大于 `2^53`，JMX 用 Groovy 生成 JSON，ID 保持字符串语义，防止 Lua `cjson` 精度回归。
 - 单账号限购 6，因此一次初始化最多允许 6000 个单票成功请求。可用成功预算为 `min(10000, 1000×6)=6000`。

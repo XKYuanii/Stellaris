@@ -37,20 +37,26 @@ $httpClient.Timeout = [TimeSpan]::FromSeconds(30)
 [void]$httpClient.DefaultRequestHeaders.TryAddWithoutValidation('no_verify', 'true')
 try {
     while ((Get-Date) -lt $deadline) {
-        $openOrders = @(Get-StellarisBenchmarkOrderNumbers -Container $MySqlContainer -Password $MySqlPassword -OrderStatus 1)
-        $newOpenOrders = @($openOrders | Where-Object { $seen.Add("$_") })
+        $openOrders = @(Get-StellarisBenchmarkOpenOrderOwners -Container $MySqlContainer -Password $MySqlPassword)
+        $newOpenOrders = @($openOrders | Where-Object { $seen.Add("$($_.orderNumber)") })
         $failedCancels = [System.Collections.Generic.List[object]]::new()
         for ($offset = 0; $offset -lt $newOpenOrders.Count; $offset += $CancelBatchSize) {
             $last = [Math]::Min($newOpenOrders.Count - 1, $offset + $CancelBatchSize - 1)
             $pending = [System.Collections.Generic.List[object]]::new()
-            foreach ($orderNumber in @($newOpenOrders[$offset..$last])) {
+            foreach ($openOrder in @($newOpenOrders[$offset..$last])) {
+                $orderNumber = "$($openOrder.orderNumber)"
                 $body = "{`"orderNumber`":`"$orderNumber`"}"
                 $content = [System.Net.Http.StringContent]::new(
                     $body, [System.Text.Encoding]::UTF8, 'application/json')
+                $message = [System.Net.Http.HttpRequestMessage]::new(
+                    [System.Net.Http.HttpMethod]::Post, "$OrderServiceBaseUrl/order/cancel")
+                $message.Content = $content
+                [void]$message.Headers.TryAddWithoutValidation('userId', "$($openOrder.userId)")
                 $pending.Add([pscustomobject]@{
-                    orderNumber = "$orderNumber"
+                    orderNumber = $orderNumber
                     content = $content
-                    task = $httpClient.PostAsync("$OrderServiceBaseUrl/order/cancel", $content)
+                    message = $message
+                    task = $httpClient.SendAsync($message)
                 })
             }
             try {
@@ -92,6 +98,7 @@ try {
                         $httpResponse.Dispose()
                     }
                 } finally {
+                    $request.message.Dispose()
                     $request.content.Dispose()
                 }
             }

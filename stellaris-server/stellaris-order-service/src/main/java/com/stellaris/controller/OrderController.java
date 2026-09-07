@@ -7,13 +7,10 @@ import com.stellaris.dto.OrderGetDto;
 import com.stellaris.dto.OrderListDto;
 import com.stellaris.dto.OrderPayCheckDto;
 import com.stellaris.dto.OrderPayDto;
-import com.stellaris.dto.OrderSimpleListDto;
 import com.stellaris.dto.ReferenceOrderStateQueryDto;
-import com.stellaris.scheduletask.PresentationOrderDataTask;
+import com.stellaris.security.CurrentRequestIdentity;
 import com.stellaris.service.OrderService;
 import com.stellaris.service.reference.ReferenceOrderStateQueryService;
-import com.stellaris.service.reference.ReservationTransitionEventService;
-import com.stellaris.service.kafka.OrderCreateDltService;
 import com.stellaris.vo.AccountOrderCountVo;
 import com.stellaris.vo.OrderGetVo;
 import com.stellaris.vo.OrderListVo;
@@ -29,7 +26,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 
@@ -47,16 +43,10 @@ public class OrderController {
     private OrderService orderService;
     
     @Autowired
-    private PresentationOrderDataTask orderDataTask;
-    
-    @Autowired
     private ReferenceOrderStateQueryService referenceOrderStateQueryService;
 
     @Autowired
-    private ReservationTransitionEventService reservationTransitionEventService;
-
-    @Autowired
-    private OrderCreateDltService orderCreateDltService;
+    private CurrentRequestIdentity currentRequestIdentity;
     
     
     @Operation(summary = "v5 对账内部：批量查询订单状态")
@@ -68,13 +58,13 @@ public class OrderController {
     @Operation(summary  = "订单支付")
     @PostMapping(value = "/pay")
     public ApiResponse<PayResultVo> pay(@Valid @RequestBody OrderPayDto orderPayDto) {
-        return ApiResponse.ok(orderService.pay(orderPayDto));
+        return ApiResponse.ok(orderService.pay(orderPayDto, currentRequestIdentity.requireUserId()));
     }
     
     @Operation(summary  = "订单支付后状态检查")
     @PostMapping(value = "/pay/check")
     public ApiResponse<OrderPayCheckVo> payCheck(@Valid @RequestBody OrderPayCheckDto orderPayCheckDto) {
-        return ApiResponse.ok(orderService.payCheck(orderPayCheckDto));
+        return ApiResponse.ok(orderService.payCheck(orderPayCheckDto, currentRequestIdentity.requireUserId()));
     }
     
     @Operation(summary  = "支付宝支付后回调通知")
@@ -86,13 +76,13 @@ public class OrderController {
     @Operation(summary  = "查看订单列表")
     @PostMapping(value = "/select/list")
     public ApiResponse<List<OrderListVo>> selectList(@Valid @RequestBody OrderListDto orderListDto) {
-        return ApiResponse.ok(orderService.selectList(orderListDto));
+        return ApiResponse.ok(orderService.selectList(orderListDto, currentRequestIdentity.requireUserId()));
     }
     
     @Operation(summary  = "查看订单详情")
     @PostMapping(value = "/get")
     public ApiResponse<OrderGetVo> get(@Valid @RequestBody OrderGetDto orderGetDto) {
-        return ApiResponse.ok(orderService.get(orderGetDto));
+        return ApiResponse.ok(orderService.get(orderGetDto, currentRequestIdentity.requireUserId()));
     }
     
     @Operation(summary  = "账户下某个节目的订单数量(不提供给前端调用，只允许内部program服务调用)")
@@ -101,41 +91,9 @@ public class OrderController {
         return ApiResponse.ok(orderService.accountOrderCount(accountOrderCountDto));
     }
     
-    @Operation(summary  = "查看缓存中的订单")
-    @PostMapping(value = "/get/cache")
-    public ApiResponse<String> getCache(@Valid @RequestBody OrderGetDto orderGetDto) {
-        return ApiResponse.ok(orderService.getCache(orderGetDto));
-    }
-    
     @Operation(summary  = "订单详情取消")
     @PostMapping(value = "/cancel")
     public ApiResponse<Boolean> cancel(@Valid @RequestBody OrderCancelDto orderCancelDto) {
-        return ApiResponse.ok(orderService.initiateCancel(orderCancelDto));
-    }
-
-    @Operation(summary  = "通过订单编号或者用户id查询订单列表")
-    @PostMapping(value = "/simple/list")
-    public ApiResponse<List<OrderListVo>> simpleList(@Valid @RequestBody OrderSimpleListDto orderSimpleListDto) {
-        return ApiResponse.ok(orderService.simpleList(orderSimpleListDto));
-    }
-    
-    @Operation(summary  = "测试")
-    @PostMapping(value = "/test")
-    public ApiResponse<Void> test() {
-        orderDataTask.executeTask();
-        return ApiResponse.ok();
-    }
-
-    @Operation(summary = "重放失败的 v5 支付/取消座位迁移命令")
-    @PostMapping(value = "/reservation/transition/replay")
-    public ApiResponse<Boolean> replayReservationTransition(@RequestParam long orderNumber,
-                                                            @RequestParam long userId) {
-        return ApiResponse.ok(reservationTransitionEventService.replay(orderNumber, userId));
-    }
-
-    @Operation(summary = "按原 eventId/orderNumber 重放已持久化的创建订单 DLT")
-    @PostMapping(value = "/create/dlt/replay")
-    public ApiResponse<Boolean> replayCreateOrderDlt(@RequestParam long orderNumber, @RequestParam long userId) {
-        return ApiResponse.ok(orderCreateDltService.replay(orderNumber, userId));
+        return ApiResponse.ok(orderService.initiateCancel(orderCancelDto, currentRequestIdentity.requireUserId()));
     }
 }

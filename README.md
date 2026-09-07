@@ -17,8 +17,10 @@
 
 Stellaris 是一个可运行、可解释、可验证的票务交易工程原型。项目围绕热门演出开售时的流量治理、原子锁座、可靠事件、幂等落单、支付状态竞争、超时取消和对账恢复，展示一条完整的微服务交易链路。
 
+本仓库基于 JavaUp 的“大麦”票务教学项目骨架进行工程化重构。本人主要完成 v5 交易链路、Redis Stream/Kafka 可靠投递、幂等与状态 CAS、超时取消、对账恢复、网关流量治理、安全边界、测试和工程文档；基础业务模型及部分通用组件来源于上游。上游项目介绍见 [JavaUp](https://www.javaup.chat)。
+
 > [!IMPORTANT]
-> `v5/reference` 是当前唯一建议用于演示、测试和面试说明的下单链路。`v1`～`v4.1` 仅作为架构演进对照，不代表当前推荐实现。
+> `v5/reference` 是当前仓库唯一保留的下单实现。`v1`～`v4.1` 只存在于历史测试材料和架构演进记录中，不再作为可运行接口。
 
 > [!NOTE]
 > 本项目用于架构学习、面试演示和可靠性实验，不是可直接投入生产的部署模板。它不宣称端到端 Exactly Once、跨存储强事务、基础设施高可用或未经实测的 QPS。
@@ -96,6 +98,7 @@ v5 不在热路径写 MySQL Intent/Outbox；锁座变化与 Stream 事件由同�
 ## 核心能力
 
 - **三层流量治理**：Gateway 按可信 USER、PROGRAM、GLOBAL 维度执行 Redis Lua 令牌桶，之后再进入本机并发舱壁。
+- **用户域归属校验**：订单、个人资料和购票人接口均以 Gateway 身份为准，正文身份不一致会被拒绝；敏感聚合查询仅允许服务内调用。
 - **原子库存预订**：v5 Lua 在单次执行中完成限购判断、精确锁座、幂等回执和 Stream 事件写入。
 - **Redis Cluster 约束**：节目按 16 个 `{sale:shard}` Hash Tag 分散；同一节目的库存键和 Stream 保持同槽。
 - **请求级幂等**：`reservationId` 对应带 TTL 的结果回执，自动选座请求重试不会改选座位或重新生成订单号。
@@ -122,7 +125,7 @@ v5 不在热路径写 MySQL Intent/Outbox；锁座变化与 Stream 事件由同�
 | 测试与验证 | JUnit、Mockito、Maven Surefire、JMeter、PowerShell |
 | 可观测性 | Spring Boot Actuator、Micrometer、Prometheus 规则、结构化日志 |
 
-仓库包含 47 个 Maven `pom.xml`、约 750 个主 Java 源文件，以及单元、集成辅助和压测脚本。
+仓库包含 47 个 Maven `pom.xml`、700 余个主 Java 源文件，以及单元、正确性验证和历史容量测试资产。
 
 ## 仓库结构
 
@@ -191,7 +194,7 @@ Windows 上仓库存在较深的 Java 包路径，建议在克隆前启用 Git �
 
 ```powershell
 git config --global core.longpaths true
-git clone https://github.com/xiangzi-yuan/Stellaris.git
+git clone https://github.com/XKYuanii/Stellaris.git
 Set-Location Stellaris
 ```
 
@@ -254,6 +257,8 @@ mvn -f stellaris-server/stellaris-program-service/pom.xml spring-boot:run
 最后启动 Gateway：
 
 ```powershell
+# 仅本机体验使用；默认 false，生产或联网环境必须保持关闭并配置完整签名。
+$env:STELLARIS_ALLOW_NORMAL_ACCESS = 'true'
 mvn -f stellaris-server/stellaris-gateway-service/pom.xml spring-boot:run
 ```
 
@@ -310,6 +315,7 @@ docker compose -p stellaris-interview -f ops/docker-compose.interview.yml down
 | `STELLARIS_ORDER_PROGRAM_BURST` | 节目维度突发容量 |
 | `STELLARIS_ORDER_GLOBAL_QPS` | 全局下单令牌补充速率 |
 | `STELLARIS_ORDER_GLOBAL_BURST` | 全局突发容量 |
+| `STELLARIS_ALLOW_NORMAL_ACCESS` | 默认 `false`；仅隔离本机演示时临时设为 `true` |
 | `ALIPAY_MERCHANT_PRIVATE_KEY` | 支付宝商户私钥，不提供默认值 |
 | `ALIPAY_CONTENT_KEY` | 支付宝内容加密密钥，不提供默认值 |
 
@@ -323,6 +329,8 @@ v5 下单入口：
 POST /stellaris/program/program/order/create/v5
 ```
 
+无签名 demo 请求还需携带 `X-Stellaris-Demo-User-Id`。该值可由客户端伪造，只用于隔离本机；网关消费并删除它，再重建下游 `userId`。签名模式始终从 Token 获取身份。测试文件同时保留普通 `userId` 头，仅用于直连 6086/8081 的内部基准场景，业务服务端口不得暴露公网。
+
 请求体模板见 [`ops/v5-order-body.example.json`](ops/v5-order-body.example.json)。完成测试数据准备并取得体验账户 Token 后，可以使用仓库提供的轻量调用脚本：
 
 ```powershell
@@ -335,7 +343,7 @@ POST /stellaris/program/program/order/create/v5
 
 脚本会为每次调用生成独立 `requestId`，结果写入被 Git 忽略的 `output/`。不要在不了解数据准备与清理流程时直接提高并发量。
 
-常用恢复接口包括（下列为服务内相对路径；经 Gateway 调用时还需要添加对应的 `/stellaris/order` 或 `/stellaris/program` 路由前缀）：
+常用恢复接口包括（以下均属于管理面，不允许经外部 Gateway 调用）：
 
 - `POST /order/reconciliation/task`：执行订单侧对账任务。
 - `POST /order/reservation/transition/replay`：重放座位迁移事件。
@@ -343,7 +351,7 @@ POST /stellaris/program/program/order/create/v5
 - `POST /program/reference/reconciliation/run`：执行 v5 多源对账。
 - `POST /program/reference/reconciliation/stream/dead/replay`：重放 Stream 死信。
 
-恢复接口会改变业务状态，只应在隔离的演示数据或明确的故障恢复流程中使用。
+恢复接口会改变业务状态，默认由 `stellaris.management.operations.enabled=false` 禁用；只应在内网管理面、隔离演示数据或明确的故障恢复流程中临时开启。
 
 ## 测试与验证
 
@@ -362,6 +370,13 @@ npm ci
 npm run build
 ```
 
+准备好隔离测试节目后，可用一个入口验证 Gateway 边界、创建幂等、身份缺失、跨用户查单、reservation 一致性、Stream/PEL/dead/Kafka 收敛，以及正常取消后的 MySQL/Redis 库存与账号计数恢复；它不执行压测：
+
+```powershell
+# Gateway 必须在隔离本机环境以 STELLARIS_ALLOW_NORMAL_ACCESS=true 启动
+& '.\tests\correctness\Invoke-StellarisV5Correctness.ps1'
+```
+
 ### JMeter 与容量测试
 
 - [轻量 JMeter 说明](tests/jmeter/README.md)
@@ -373,20 +388,20 @@ npm run build
 
 ### 最近一次本地验证基线
 
-2026-08-29 的迁移验证包括：
+2026-08-29 的历史迁移验证包括：
 
 - Maven 47 模块完整打包成功，49 个测试通过，0 failure / error / skip。
 - Vue 生产构建成功，共转换 1666 个模块。
 - MySQL、Redis、Kafka、Nacos、Elasticsearch 五个容器通过健康检查。
-- v5 直连 1 / 3 / 10 并发场景共 14 次调用全部成功。
+- v5 直连 Program Service 的 1 / 3 / 10 并发场景共 14 次调用全部成功；该口径绕过 Gateway，不能代表系统入口容量。
 - Gateway 1 / 3 并发成功；10 并发时按现有 USER 维度 `3 req/s` 规则返回 3 个成功和 7 个 HTTP 429，属于预期限流。
 - 验证后订单、座位和 Redis owner 数据完成清理与回收。
 
-这组结果证明当前本地基线可运行，不代表生产容量结论。
+这组结果只证明当时版本的本地链路可运行，不代表当前版本回归结果或生产容量结论。当前版本以 Maven 测试和 `tests/correctness` 的 Gateway 正确性脚本为准。
 
 ## 可观测性与排障
 
-- 启用 Actuator 的服务可通过 `/actuator/health` 检查健康状态，通过 `/actuator/prometheus` 导出指标。
+- 核心服务只暴露 Actuator 的 `health/info/prometheus`；可通过 `/actuator/health` 检查健康状态，通过 `/actuator/prometheus` 导出指标。
 - Prometheus 告警规则位于 [`ops/prometheus/stellaris-reliability-alerts.yml`](ops/prometheus/stellaris-reliability-alerts.yml)。
 - 业务日志写入本地 `logs/`，该目录不会提交到 Git。
 - JMeter 和轻量负载结果写入 `output/`，该目录同样被忽略。
@@ -441,6 +456,8 @@ npm run build
 - 支付默认以模拟链路为主；真实支付宝参数、证书、回调域名和安全合规需要单独配置。
 - 当前退款模型只支持全额退款，不包含部分退款、组合支付和复杂资金账务。
 - 高并发结果依赖本机硬件和参数；仓库不把单机数字包装成生产 SLA。
+- 历史 V4/V5 A/B 性能材料直连单实例 Program Service，绕过 Gateway；只能说明同步接单实现差异，不能描述为外部入口或完整系统容量。
+- 业务服务端口属于可信内网边界；若将 Program/Order/User 等端口直接暴露公网，请求头身份会失去可信前提。
 - 尚未完成系统化的 `kill -9`、网络分区、中间件中断和恢复时间收敛证明。
 
 更细的限制、风险和演示表述见 [KNOWN_BOUNDARIES.md](docs/KNOWN_BOUNDARIES.md)。

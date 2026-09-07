@@ -11,6 +11,9 @@ import org.apache.ibatis.annotations.Param;
  * @author: xz_y
  **/
 public interface OrderMapper extends BaseMapper<Order> {
+
+    /** User-facing ownership lookup; both keys are mandatory. */
+    Order selectOwnedOrder(@Param("orderNumber") Long orderNumber, @Param("userId") Long userId);
     
     /**
      * 查询账户下购票人数量

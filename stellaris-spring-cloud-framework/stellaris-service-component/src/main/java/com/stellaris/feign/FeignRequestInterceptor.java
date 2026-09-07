@@ -1,5 +1,6 @@
 package com.stellaris.feign;
 
+import com.stellaris.threadlocal.BaseParameterHolder;
 import com.stellaris.util.StringUtil;
 import feign.RequestInterceptor;
 import feign.RequestTemplate;
@@ -10,11 +11,10 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import jakarta.servlet.http.HttpServletRequest;
-import java.util.Objects;
-
 import static com.stellaris.constant.Constant.CODE;
 import static com.stellaris.constant.Constant.GRAY_PARAMETER;
 import static com.stellaris.constant.Constant.TRACE_ID;
+import static com.stellaris.constant.Constant.USER_ID;
 
 
 /**
@@ -33,21 +33,37 @@ public class FeignRequestInterceptor implements RequestInterceptor {
     public void apply(RequestTemplate template) {
         try {
             RequestAttributes ra = RequestContextHolder.getRequestAttributes();
-            if (Objects.nonNull(ra)) {
-                ServletRequestAttributes sra = (ServletRequestAttributes) ra;
-                HttpServletRequest request = sra.getRequest();
-                String traceId = request.getHeader(TRACE_ID);
-                String code = request.getHeader(CODE);
-                String gray = request.getHeader(GRAY_PARAMETER);
-                if (StringUtil.isEmpty(gray)) {
-                    gray = serverGray;
-                }
-                template.header(TRACE_ID,traceId);
-                template.header(CODE,code);
-                template.header(GRAY_PARAMETER,gray);
+            HttpServletRequest request = ra instanceof ServletRequestAttributes sra ? sra.getRequest() : null;
+
+            String traceId = requestParameter(request, TRACE_ID);
+            String code = requestParameter(request, CODE);
+            String gray = requestParameter(request, GRAY_PARAMETER);
+            String userId = requestParameter(request, USER_ID);
+            if (StringUtil.isEmpty(gray)) {
+                gray = serverGray;
             }
+            addHeaderIfPresent(template, TRACE_ID, traceId);
+            addHeaderIfPresent(template, CODE, code);
+            addHeaderIfPresent(template, GRAY_PARAMETER, gray);
+            addHeaderIfPresent(template, USER_ID, userId);
         }catch (Exception e) {
             log.error("FeignRequestInterceptor apply error",e);
+        }
+    }
+
+    private String requestParameter(HttpServletRequest request, String name) {
+        String value = request == null ? null : request.getHeader(name);
+        if (StringUtil.isEmpty(value)) {
+            // BusinessThreadPool propagates BaseParameterHolder rather than RequestContextHolder.
+            // Kafka consumers and scheduled jobs have neither context and therefore still carry no identity.
+            value = BaseParameterHolder.getParameter(name);
+        }
+        return value;
+    }
+
+    private void addHeaderIfPresent(RequestTemplate template, String name, String value) {
+        if (StringUtil.isNotEmpty(value)) {
+            template.header(name, value);
         }
     }
 }

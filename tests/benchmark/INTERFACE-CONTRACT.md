@@ -22,9 +22,9 @@
 - 作用：执行限流、自动候选、Lua 锁座、XADD，返回本次幂等业务的订单号；MySQL 订单随后由 Stream Relay → Kafka → Consumer 异步创建。
 - HTTP Method：`POST`
 - 正式 Gateway URL：`http://127.0.0.1:6085/stellaris/program/program/order/create/v5`
-- 定位用直连 URL：`http://127.0.0.1:6086/program/order/create/v5`
+- 定位用直连 URL：`http://127.0.0.1:6086/program/order/create/v5`；仅限可信本机网络，并须携带与正文一致的 `userId` Header。
 - Headers：`Content-Type: application/json;charset=UTF-8`；项目真实 token Header 为 `token: ${token}`。
-- 本地压测旁路：`no_verify: true` 可跳过 Gateway 签名/token 检查；它不能用于生产，且仍经过 Gateway 自研限流/舱壁。
+- 本地压测旁路：Gateway 仅在以 `STELLARIS_ALLOW_NORMAL_ACCESS=true` 启动时接受 `no_verify: true`，从 `X-Stellaris-Demo-User-Id` 重建下游 `userId`；它允许伪造身份，只能用于隔离本机，且仍经过 Gateway 自研限流/舱壁。
 - Path 参数：无。
 - Query 参数：无。
 - 是否参与正式压测：是，唯一主采样器。
@@ -66,7 +66,7 @@
 - 作用：从 MySQL 构建节目座位 meta、available ZSET、ready/version 等 V5 Redis 状态。
 - Method：`POST`
 - URL：`http://127.0.0.1:6086/program/data/preheat`
-- Headers：`Content-Type: application/json;charset=UTF-8`、`no_verify: true`
+- Headers：`Content-Type: application/json;charset=UTF-8`、`no_verify: true`、`X-Stellaris-Demo-User-Id: <userId>`
 - Path/Query 参数：无。
 - Request Body：
 
@@ -86,8 +86,8 @@
 - 作用：端到端探针确认异步订单已可查询。
 - Method：`POST`
 - 直连 URL：`http://127.0.0.1:8081/order/get/cache`
-- Gateway URL：`http://127.0.0.1:6085/stellaris/order/order/get/cache`
-- Headers：`Content-Type: application/json;charset=UTF-8`；Gateway 正常鉴权时使用 `token`，本地直连/旁路使用 `no_verify: true`。
+- Gateway：固定返回 HTTP 404；该运维接口默认关闭，只能在可信管理面显式启用。
+- Headers：直连时需由受控脚本携带可信 `userId`，不能面向公网。
 - Path/Query 参数：无。
 - Request Body：
 
@@ -108,7 +108,7 @@
 - Method：`POST`
 - 直连 URL：`http://127.0.0.1:8081/order/get`
 - Gateway URL：`http://127.0.0.1:6085/stellaris/order/order/get`
-- Headers/Body：与缓存查询相同。
+- Headers：Gateway 正常访问使用 token；隔离本机旁路在请求体附带 `userId`，由 Gateway 重建身份。直连仅允许受控脚本携带 `userId` Header。
 - Response Body：`ApiResponse<OrderGetVo>`；已确认关键字段包括 `orderNumber/programId/userId/orderStatus/orderTicketInfoVoList`。订单状态：1 未支付、2 已取消、3 已支付、4 已退单。
 - 成功条件：HTTP 2xx、`code=0`、`data.orderNumber` 与请求一致。
 - 失败条件：其他情况。
@@ -122,7 +122,7 @@
 - Method：`POST`
 - 正常恢复直连 URL：`http://127.0.0.1:8081/order/cancel`
 - Gateway URL：`http://127.0.0.1:6085/stellaris/order/order/cancel`
-- Headers：`Content-Type: application/json;charset=UTF-8`、本地脚本使用 `no_verify: true`。
+- Headers：`Content-Type: application/json;charset=UTF-8`、本地直连清理脚本同时携带订单所属 `userId` Header。
 - Path/Query 参数：无。
 - Request Body：
 

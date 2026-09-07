@@ -6,6 +6,7 @@ import com.stellaris.service.reference.ReferenceReconciliationReport;
 import com.stellaris.service.kafka.RedisOrderCreateDeadLetterService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 @RestController
 @RequestMapping("/program/reference/reconciliation")
 @Tag(name = "reference-reconciliation", description = "v5 三层对账")
+@ConditionalOnProperty(prefix = "stellaris.management.operations", name = "enabled", havingValue = "true")
 public class ReferenceReconciliationController {
     private final ReferenceReconciliationExecutor executor;
     private final RedisOrderCreateDeadLetterService deadLetterService;

@@ -18,6 +18,15 @@
 
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.stellaris.mapper.OrderMapper">
+    <select id="selectOwnedOrder" resultType="com.stellaris.entity.Order">
+        select *
+        from d_order
+        where order_number = #{orderNumber,jdbcType=BIGINT}
+          and user_id = #{userId,jdbcType=BIGINT}
+          and status = 1
+        limit 1
+    </select>
+
     <select id="accountOrderCount" resultType="java.lang.Integer">
         select
             count(*)

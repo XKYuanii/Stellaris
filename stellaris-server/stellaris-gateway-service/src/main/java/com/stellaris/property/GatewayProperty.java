@@ -19,14 +19,14 @@ public class GatewayProperty {
     private String[] apiRestrictPaths;
     
     @Value("${skip.check.token.paths:/**/program/order/create/v5,/**/ticket/user/add,/**/ticket/user/delete,/**/ticket/user/list,/**/user/authentication," +
-            "/**/user/update,/**/user/update/email,/**/user/update/mobile,/**/user/update/password," +
-            "/**/order/cancel,/**/order/pay,/**/order/select/list,/**/order/get,/**/order/cancel}")
+            "/**/user/get/id,/**/user/update,/**/user/update/email,/**/user/update/mobile,/**/user/update/password," +
+            "/**/order/cancel,/**/order/pay,/**/order/pay/check,/**/order/select/list,/**/order/get")
     private String[] checkTokenPaths;
     
     @Value("${skip.check.parmeter.paths:/**/alipay/notify}")
     private String[] checkSkipParmeterPaths;
     
-    @Value("${allow.normal.access:true}")
+    @Value("${allow.normal.access:false}")
     private boolean allowNormalAccess;
     
     @Value("${userId.paths:/**/program/detail,/**/program/detail/v1,/**/program/detail/v2}")

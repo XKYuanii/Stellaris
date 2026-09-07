@@ -1,6 +1,6 @@
 import axios from 'axios'
 import {jsrsasign,KJUR, hextob64} from "jsrsasign";
-import { getToken } from '@/utils/auth'
+import { getToken, getUserIdKey } from '@/utils/auth'
 import useUserStore from '@/store/modules/user'
 
 axios.defaults.headers['Content-Type'] = 'application/json;charset=utf-8'
@@ -25,6 +25,14 @@ request.interceptors.request.use(
         if (getToken) {
             let token = getToken();
             config.headers = Object.assign(config.headers,{token:token});
+        }
+        // no_verify 只允许隔离本机演示。由网关消费该专用头并重建正式 userId，
+        // 使详情、支付、取消等正文不含 userId 的请求也能建立当前用户上下文。
+        if (signFlag != 1) {
+            const demoUserId = getUserIdKey();
+            if (demoUserId) {
+                config.headers = Object.assign(config.headers,{'X-Stellaris-Demo-User-Id':demoUserId});
+            }
         }
         return config;
     },
