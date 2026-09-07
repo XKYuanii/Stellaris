@@ -23,6 +23,20 @@ class InternalEndpointBlockFilterTest {
     }
 
     @Test
+    void blocksInternalRoutesRegardlessOfGatewayRoutePrefix() {
+        assertThat(InternalEndpointBlockFilter.isBlockedPath(
+                "/stellaris-order-service/order/simple/list")).isTrue();
+        assertThat(InternalEndpointBlockFilter.isBlockedPath(
+                "/stellaris-order-service/order/account/order/count")).isTrue();
+        assertThat(InternalEndpointBlockFilter.isBlockedPath(
+                "/stellaris-order-service/order/reference/reconciliation/state/batch")).isTrue();
+        assertThat(InternalEndpointBlockFilter.isBlockedPath(
+                "/stellaris-program-service/program/reference/reconciliation/run")).isTrue();
+        assertThat(InternalEndpointBlockFilter.isBlockedPath(
+                "/stellaris-user-service/user/get/mobile")).isTrue();
+    }
+
+    @Test
     void allowsUserFacingV5Routes() {
         assertThat(InternalEndpointBlockFilter.isBlockedPath(
                 "/stellaris/program/program/order/create/v5")).isFalse();
@@ -30,6 +44,8 @@ class InternalEndpointBlockFilterTest {
                 "/stellaris/order/order/get")).isFalse();
         assertThat(InternalEndpointBlockFilter.isBlockedPath(
                 "/stellaris/order/order/pay/check")).isFalse();
+        assertThat(InternalEndpointBlockFilter.isBlockedPath(
+                "/stellaris-program-service/program/order/create/v5")).isFalse();
     }
 
     @Test

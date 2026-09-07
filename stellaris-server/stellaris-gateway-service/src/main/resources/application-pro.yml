@@ -4,7 +4,9 @@ spring:
       enabled: true
       discovery:
         locator:
-          enabled: true
+          # Explicit routes below are the only public entry points. Enabling the locator would
+          # create parallel /{serviceId}/** routes that bypass path-scoped isolation and limits.
+          enabled: false
       routes:
         - id: ${prefix.distinction.name:stellaris}-base-data-service
           uri: lb://${prefix.distinction.name:stellaris}-base-data-service

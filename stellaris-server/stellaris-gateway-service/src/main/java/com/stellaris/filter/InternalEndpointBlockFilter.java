@@ -17,17 +17,17 @@ import java.util.List;
 public class InternalEndpointBlockFilter implements GlobalFilter, Ordered {
     private static final PathMatcher PATH_MATCHER = new AntPathMatcher();
     private static final List<String> BLOCKED_PATHS = List.of(
-            "/stellaris/order/order/test",
-            "/stellaris/order/order/get/cache",
-            "/stellaris/order/order/simple/list",
-            "/stellaris/order/order/account/order/count",
-            "/stellaris/order/order/reference/**",
-            "/stellaris/order/order/create/dlt/replay",
-            "/stellaris/order/order/reservation/transition/replay",
-            "/stellaris/program/program/reference/reconciliation/**",
-            "/stellaris/user/user/get/mobile",
-            "/stellaris/user/user/exist",
-            "/stellaris/user/user/get/user/ticket/list"
+            "/**/order/test",
+            "/**/order/get/cache",
+            "/**/order/simple/list",
+            "/**/order/account/order/count",
+            "/**/order/reference/**",
+            "/**/order/create/dlt/replay",
+            "/**/order/reservation/transition/replay",
+            "/**/program/reference/reconciliation/**",
+            "/**/user/get/mobile",
+            "/**/user/exist",
+            "/**/user/get/user/ticket/list"
     );
 
     @Override
