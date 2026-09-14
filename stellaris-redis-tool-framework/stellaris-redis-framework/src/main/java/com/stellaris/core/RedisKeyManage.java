@@ -85,14 +85,6 @@ public enum RedisKeyManage {
     
     TICKET_USER_LIST("ticket_user_list_%s","购票人列表的key","购票人列表","k"),
     
-    ACCOUNT_ORDER_COUNT("account_order_count_%s_%s","账户下订单数量的key","账户下订单数量","k"),
-    
-    ACCOUNT_ORDER_COUNT_ALL("account_order_count_*","账户下订单数量的key","账户下订单数量","k"),
-    
-    ORDER_MQ("order_mq_%s","使用mq创建的订单的订单编号","使用mq创建的订单的订单编号","k"),
-    
-    DISCARD_ORDER("discard_order_%s","使用mq创建方式被丢弃的订单","使用mq创建方式被丢弃的订单","k"),
-    
     LOGIN_USER_MOBILE_ERROR("login_user_mobile_error_%s","登录错误的用户手机号key","登录错误的用户手机号次数","k"),
     
     LOGIN_USER_EMAIL_ERROR("login_user_email_error_%s","登录错误的用户邮箱key","登录错误的用户邮箱次数","k"),

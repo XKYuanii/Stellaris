@@ -1,10 +1,9 @@
 package com.stellaris.controller;
 
 import com.stellaris.common.ApiResponse;
-import com.stellaris.dto.OrderGetDto;
 import com.stellaris.dto.OrderSimpleListDto;
 import com.stellaris.service.OrderService;
-import com.stellaris.service.kafka.OrderCreateDltService;
+import com.stellaris.service.stream.OrderStreamFailureService;
 import com.stellaris.service.reference.ReservationTransitionEventService;
 import com.stellaris.vo.OrderListVo;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,20 +24,14 @@ import java.util.List;
 public class OrderMaintenanceController {
     private final OrderService orderService;
     private final ReservationTransitionEventService reservationTransitionEventService;
-    private final OrderCreateDltService orderCreateDltService;
+    private final OrderStreamFailureService orderStreamFailureService;
 
     public OrderMaintenanceController(OrderService orderService,
                                       ReservationTransitionEventService reservationTransitionEventService,
-                                      OrderCreateDltService orderCreateDltService) {
+                                      OrderStreamFailureService orderStreamFailureService) {
         this.orderService = orderService;
         this.reservationTransitionEventService = reservationTransitionEventService;
-        this.orderCreateDltService = orderCreateDltService;
-    }
-
-    @Operation(summary = "查看缓存中的订单（运维）")
-    @PostMapping("/get/cache")
-    public ApiResponse<String> getCache(@Valid @RequestBody OrderGetDto dto) {
-        return ApiResponse.ok(orderService.getCache(dto));
+        this.orderStreamFailureService = orderStreamFailureService;
     }
 
     @Operation(summary = "按订单编号或用户查询订单（运维）")
@@ -47,7 +40,7 @@ public class OrderMaintenanceController {
         return ApiResponse.ok(orderService.simpleList(dto));
     }
 
-    @Operation(summary = "重放失败的 v5 支付/取消座位迁移命令（运维）")
+    @Operation(summary = "重放失败的 v5 支付/取消 Redis 同步命令（运维）")
     @PostMapping("/reservation/transition/replay")
     public ApiResponse<Boolean> replayReservationTransition(@RequestParam long orderNumber,
                                                              // Maintenance lookup key, not an authenticated identity.
@@ -55,11 +48,15 @@ public class OrderMaintenanceController {
         return ApiResponse.ok(reservationTransitionEventService.replay(orderNumber, userId));
     }
 
-    @Operation(summary = "按原 eventId/orderNumber 重放创建订单 DLT（运维）")
-    @PostMapping("/create/dlt/replay")
-    public ApiResponse<Boolean> replayCreateOrderDlt(@RequestParam long orderNumber,
-                                                      // Maintenance lookup key, not an authenticated identity.
-                                                      @RequestParam long userId) {
-        return ApiResponse.ok(orderCreateDltService.replay(orderNumber, userId));
+    @Operation(summary = "重放已审计的 Stream 异常记录（运维）")
+    @PostMapping("/stream/failure/replay")
+    public ApiResponse<Boolean> replayStreamFailure(@RequestParam long id) {
+        return ApiResponse.ok(orderStreamFailureService.replay(id));
+    }
+
+    @Operation(summary = "安全释放需要人工处理的 Stream 异常预约（运维）")
+    @PostMapping("/stream/failure/release")
+    public ApiResponse<Boolean> releaseStreamFailureReservation(@RequestParam long id) {
+        return ApiResponse.ok(orderStreamFailureService.releaseReservation(id));
     }
 }

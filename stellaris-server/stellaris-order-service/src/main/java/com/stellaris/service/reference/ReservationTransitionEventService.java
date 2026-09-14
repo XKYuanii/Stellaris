@@ -1,18 +1,14 @@
 package com.stellaris.service.reference;
 
-import com.alibaba.fastjson.JSON;
 import com.baidu.fsg.uid.UidGenerator;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.stellaris.client.ProgramClient;
-import com.stellaris.common.ApiResponse;
-import com.stellaris.dto.ProgramOperateDataDto;
 import com.stellaris.entity.ReservationTransitionEvent;
-import com.stellaris.enums.BaseCode;
 import com.stellaris.mapper.ReservationTransitionEventMapper;
 import com.stellaris.util.DateUtils;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -23,17 +19,22 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicLong;
 
-/** 支付/取消本地事务写入、提交后立即执行、失败由调度重试的座位迁移命令。 */
+/** 支付/取消本地事务写入、提交后立即执行、失败由调度重试的 Redis 同步命令。 */
 @Slf4j
 @Service
 public class ReservationTransitionEventService {
     private final ReservationTransitionEventMapper mapper;
-    private final ProgramClient programClient;
+    private final OrderReservationReleaseService transitionService;
     private final UidGenerator uidGenerator;
     private final MeterRegistry meterRegistry;
+    private final Executor transitionExecutor;
+    private final AtomicLong oldestFailedAgeSeconds = new AtomicLong();
 
-    @Value("${reservation-transition.max-attempts:20}")
+    @Value("${reservation-transition.max-attempts:0}")
     private int maxAttempts;
     @Value("${reservation-transition.retry-backoff-ms:5000}")
     private long retryBackoffMs;
@@ -42,30 +43,42 @@ public class ReservationTransitionEventService {
     @Value("${reservation-transition.processing-timeout-ms:60000}")
     private long processingTimeoutMs;
 
-    public ReservationTransitionEventService(ReservationTransitionEventMapper mapper, ProgramClient programClient,
-                                             UidGenerator uidGenerator, MeterRegistry meterRegistry) {
+    public ReservationTransitionEventService(ReservationTransitionEventMapper mapper,
+                                             OrderReservationReleaseService transitionService,
+                                             UidGenerator uidGenerator, MeterRegistry meterRegistry,
+                                             @Qualifier("reservationTransitionExecutor") Executor transitionExecutor) {
         this.mapper = mapper;
-        this.programClient = programClient;
+        this.transitionService = transitionService;
         this.uidGenerator = uidGenerator;
         this.meterRegistry = meterRegistry;
+        this.transitionExecutor = transitionExecutor;
+        meterRegistry.gauge("stellaris_reservation_transition_oldest_failed_age_seconds",
+                oldestFailedAgeSeconds);
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public ReservationTransitionEvent enqueue(long orderNumber, long userId, ProgramOperateDataDto dto) {
+    public ReservationTransitionEvent enqueue(long orderNumber, long userId, long programId,
+                                              String intentId, int targetSellStatus) {
+        if (programId <= 0 || intentId == null || intentId.isBlank()) {
+            throw new IllegalArgumentException("complete reservation transition identity is required");
+        }
         ReservationTransitionEvent existing = mapper.selectOne(Wrappers.lambdaQuery(ReservationTransitionEvent.class)
                 .eq(ReservationTransitionEvent::getOrderNumber, orderNumber)
                 .eq(ReservationTransitionEvent::getUserId, userId));
-        if (existing != null) return validateExisting(existing, dto);
+        if (existing != null) return validateExisting(existing, programId, intentId, targetSellStatus);
         Date now = DateUtils.now();
         ReservationTransitionEvent event = new ReservationTransitionEvent();
         event.setId(uidGenerator.getUid());
         event.setCommandId(uidGenerator.getUid());
         event.setOrderNumber(orderNumber);
         event.setUserId(userId);
-        event.setProgramId(dto.getProgramId());
-        event.setIntentId(dto.getIntentId());
-        event.setTargetSellStatus(dto.getSellStatus());
-        event.setPayload(JSON.toJSONString(dto));
+        event.setProgramId(programId);
+        event.setIntentId(intentId);
+        event.setTargetSellStatus(targetSellStatus);
+        // Identity also lives in typed columns; payload remains diagnostic and backward-compatible.
+        event.setPayload("{\"programId\":" + programId + ",\"intentId\":\""
+                + intentId.replace("\\", "\\\\").replace("\"", "\\\"")
+                + "\",\"sellStatus\":" + targetSellStatus + "}");
         event.setEventStatus("PENDING");
         event.setRetryCount(0);
         event.setNextRetryTime(now);
@@ -81,22 +94,21 @@ public class ReservationTransitionEventService {
             if (raced == null) {
                 throw duplicate;
             }
-            return validateExisting(raced, dto);
+            return validateExisting(raced, programId, intentId, targetSellStatus);
         }
-        Runnable dispatch = () -> process(event);
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override public void afterCommit() { dispatch.run(); }
+                @Override public void afterCommit() { dispatch(event); }
             });
-        } else dispatch.run();
+        } else dispatch(event);
         return event;
     }
 
-    private ReservationTransitionEvent validateExisting(ReservationTransitionEvent existing,
-                                                        ProgramOperateDataDto requested) {
-        if (!Objects.equals(existing.getProgramId(), requested.getProgramId())
-                || !Objects.equals(existing.getIntentId(), requested.getIntentId())
-                || !Objects.equals(existing.getTargetSellStatus(), requested.getSellStatus())) {
+    private ReservationTransitionEvent validateExisting(ReservationTransitionEvent existing, long programId,
+                                                        String intentId, int targetSellStatus) {
+        if (!Objects.equals(existing.getProgramId(), programId)
+                || !Objects.equals(existing.getIntentId(), intentId)
+                || !Objects.equals(existing.getTargetSellStatus(), targetSellStatus)) {
             throw new IllegalStateException("Order already has a different reservation transition command: "
                     + existing.getOrderNumber());
         }
@@ -112,11 +124,12 @@ public class ReservationTransitionEventService {
                 .orderByAsc(ReservationTransitionEvent::getNextRetryTime)
                 .orderByAsc(ReservationTransitionEvent::getId)
                 .last("LIMIT " + Math.max(1, Math.min(batchSize, 500))));
-        events.forEach(this::process);
+        events.forEach(this::dispatch);
+        refreshOldestFailureAge();
     }
 
     /**
-     * 进程在 CAS 认领后退出时，PROCESSING 不能永久悬挂。远端迁移使用同一 commandId/intentId
+     * 进程在 CAS 认领后退出时，PROCESSING 不能永久悬挂。远端同步使用同一 commandId/intentId
      * 幂等执行，因此 lease 超时后回到 FAILED 再投递是安全的。
      */
     private void recoverTimedOutProcessing() {
@@ -175,12 +188,7 @@ public class ReservationTransitionEventService {
                 .in(ReservationTransitionEvent::getEventStatus, "PENDING", "FAILED"));
         if (claimed != 1) return "SUCCEEDED".equals(event.getEventStatus());
         try {
-            ProgramOperateDataDto dto = JSON.parseObject(event.getPayload(), ProgramOperateDataDto.class);
-            ApiResponse<Boolean> response = programClient.operateReferenceReservation(dto);
-            if (response == null || !Objects.equals(response.getCode(), BaseCode.SUCCESS.getCode())
-                    || !Boolean.TRUE.equals(response.getData())) {
-                throw new IllegalStateException(response == null ? "null program response" : response.getMessage());
-            }
+            transitionService.transition(event.getProgramId(), event.getIntentId(), event.getTargetSellStatus());
             ReservationTransitionEvent success = new ReservationTransitionEvent();
             success.setEventStatus("SUCCEEDED");
             success.setLastError("");
@@ -194,11 +202,34 @@ public class ReservationTransitionEventService {
                 meterRegistry.counter("stellaris_reservation_transition_total", "result", "success").increment();
                 return true;
             }
-            log.warn("节目迁移已成功但本地事件 SUCCEEDED CAS 未命中 commandId:{}", event.getCommandId());
+            log.warn("Redis 状态已同步但本地事件 SUCCEEDED CAS 未命中 commandId:{}", event.getCommandId());
+            return false;
+        } catch (ReservationTransitionConflictException conflict) {
+            int attempts = Objects.requireNonNullElse(event.getRetryCount(), 0) + 1;
+            ReservationTransitionEvent failed = new ReservationTransitionEvent();
+            failed.setEventStatus("DEAD");
+            failed.setRetryCount(attempts);
+            failed.setNextRetryTime(DateUtils.now());
+            failed.setLastError(abbreviate(conflict.getMessage()));
+            failed.setEditTime(DateUtils.now());
+            int recorded = mapper.update(failed, Wrappers.lambdaUpdate(ReservationTransitionEvent.class)
+                    .eq(ReservationTransitionEvent::getId, event.getId())
+                    .eq(ReservationTransitionEvent::getOrderNumber, event.getOrderNumber())
+                    .eq(ReservationTransitionEvent::getUserId, event.getUserId())
+                    .eq(ReservationTransitionEvent::getEventStatus, "PROCESSING"));
+            if (recorded == 1) {
+                meterRegistry.counter("stellaris_reservation_transition_total", "result", "dead").increment();
+                meterRegistry.counter("stellaris_reservation_transition_conflict_total",
+                        "reason", conflict.getCode()).increment();
+            }
+            log.error("Redis 状态存在确定性冲突，已停止自动重试 commandId:{} orderNumber:{} code:{}",
+                    event.getCommandId(), event.getOrderNumber(), conflict.getCode(), conflict);
             return false;
         } catch (RuntimeException ex) {
             int attempts = Objects.requireNonNullElse(event.getRetryCount(), 0) + 1;
-            boolean dead = attempts >= maxAttempts;
+            // Zero disables automatic dead-lettering: committed order transitions must converge
+            // eventually unless an operator explicitly intervenes.
+            boolean dead = maxAttempts > 0 && attempts >= maxAttempts;
             ReservationTransitionEvent failed = new ReservationTransitionEvent();
             failed.setEventStatus(dead ? "DEAD" : "FAILED");
             failed.setRetryCount(attempts);
@@ -214,7 +245,7 @@ public class ReservationTransitionEventService {
             if (recorded == 1) {
                 meterRegistry.counter("stellaris_reservation_transition_total", "result", dead ? "dead" : "failed").increment();
             }
-            log.error("v5 座位迁移失败 commandId:{} orderNumber:{}", event.getCommandId(), event.getOrderNumber(), ex);
+            log.error("v5 Redis 状态同步失败 commandId:{} orderNumber:{}", event.getCommandId(), event.getOrderNumber(), ex);
             return false;
         }
     }
@@ -222,5 +253,34 @@ public class ReservationTransitionEventService {
     private String abbreviate(String message) {
         if (message == null) return "unknown";
         return message.length() <= 1000 ? message : message.substring(0, 1000);
+    }
+
+    private void refreshOldestFailureAge() {
+        try {
+            ReservationTransitionEvent oldest = mapper.selectOne(
+                    Wrappers.lambdaQuery(ReservationTransitionEvent.class)
+                            .eq(ReservationTransitionEvent::getEventStatus, "FAILED")
+                            .orderByAsc(ReservationTransitionEvent::getCreateTime)
+                            .orderByAsc(ReservationTransitionEvent::getId)
+                            .last("LIMIT 1"));
+            if (oldest == null) {
+                oldestFailedAgeSeconds.set(0L);
+                return;
+            }
+            Date since = oldest.getCreateTime();
+            oldestFailedAgeSeconds.set(since == null ? 0L
+                    : Math.max(0L, (System.currentTimeMillis() - since.getTime()) / 1000L));
+        } catch (RuntimeException observationFailure) {
+            log.warn("Redis 状态同步失败年龄采集失败", observationFailure);
+        }
+    }
+
+    private void dispatch(ReservationTransitionEvent event) {
+        try {
+            transitionExecutor.execute(() -> process(event));
+        } catch (RejectedExecutionException saturated) {
+            // The database row is still PENDING/FAILED and the scheduled relay will submit it again.
+            log.warn("Redis 状态同步线程池已满，保留事件等待下轮重试 commandId:{}", event.getCommandId());
+        }
     }
 }

@@ -105,6 +105,18 @@ public class Order extends BaseTableData implements Serializable {
      */
     private Date createOrderTime;
 
+    /** 持久化的未支付截止时间，避免配置变化重算历史订单。 */
+    private Date expireTime;
+
+    /** 过期关单失败次数；失败项延期后不会持续占据扫描队头。 */
+    private Integer expiryRetryCount;
+
+    /** 下一次允许尝试过期关单的时间，null 表示立即可扫描。 */
+    private Date expiryNextRetryTime;
+
+    /** 最近一次关单失败摘要，供人工排查。 */
+    private String expiryLastError;
+
     /**
      * 取消订单时间
      */

@@ -9,13 +9,17 @@ class InternalEndpointBlockFilterTest {
     @Test
     void blocksInternalAndMaintenanceRoutes() {
         assertThat(InternalEndpointBlockFilter.isBlockedPath(
-                "/stellaris/order/order/account/order/count")).isTrue();
+                "/stellaris/order/order/interior/account/order/count")).isTrue();
         assertThat(InternalEndpointBlockFilter.isBlockedPath(
-                "/stellaris/order/order/reference/reconciliation/state/batch")).isTrue();
+                "/stellaris/order/order/interior/reference/inventory/initialize")).isTrue();
         assertThat(InternalEndpointBlockFilter.isBlockedPath(
-                "/stellaris/program/program/reference/reconciliation/run")).isTrue();
+                "/stellaris/program/program/interior/reference/reservation/transition")).isTrue();
         assertThat(InternalEndpointBlockFilter.isBlockedPath(
-                "/stellaris/order/order/create/dlt/replay")).isTrue();
+                "/stellaris/pay/pay/reference/reconciliation/state/batch")).isTrue();
+        assertThat(InternalEndpointBlockFilter.isBlockedPath(
+                "/stellaris/order/order/stream/failure/replay")).isTrue();
+        assertThat(InternalEndpointBlockFilter.isBlockedPath(
+                "/stellaris/order/order/stream/failure/release")).isTrue();
         assertThat(InternalEndpointBlockFilter.isBlockedPath(
                 "/stellaris/user/user/get/user/ticket/list")).isTrue();
         assertThat(InternalEndpointBlockFilter.isBlockedPath(
@@ -27,11 +31,11 @@ class InternalEndpointBlockFilterTest {
         assertThat(InternalEndpointBlockFilter.isBlockedPath(
                 "/stellaris-order-service/order/simple/list")).isTrue();
         assertThat(InternalEndpointBlockFilter.isBlockedPath(
-                "/stellaris-order-service/order/account/order/count")).isTrue();
+                "/stellaris-order-service/order/stream/failure/replay")).isTrue();
         assertThat(InternalEndpointBlockFilter.isBlockedPath(
-                "/stellaris-order-service/order/reference/reconciliation/state/batch")).isTrue();
+                "/stellaris-order-service/order/stream/failure/release")).isTrue();
         assertThat(InternalEndpointBlockFilter.isBlockedPath(
-                "/stellaris-program-service/program/reference/reconciliation/run")).isTrue();
+                "/stellaris-pay-service/pay/reference/reconciliation/state/batch")).isTrue();
         assertThat(InternalEndpointBlockFilter.isBlockedPath(
                 "/stellaris-user-service/user/get/mobile")).isTrue();
     }

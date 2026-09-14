@@ -17,14 +17,12 @@ import java.util.List;
 public class InternalEndpointBlockFilter implements GlobalFilter, Ordered {
     private static final PathMatcher PATH_MATCHER = new AntPathMatcher();
     private static final List<String> BLOCKED_PATHS = List.of(
-            "/**/order/test",
-            "/**/order/get/cache",
             "/**/order/simple/list",
-            "/**/order/account/order/count",
-            "/**/order/reference/**",
-            "/**/order/create/dlt/replay",
+            "/**/order/interior/**",
             "/**/order/reservation/transition/replay",
-            "/**/program/reference/reconciliation/**",
+            "/**/order/stream/failure/**",
+            "/**/program/interior/**",
+            "/**/pay/reference/**",
             "/**/user/get/mobile",
             "/**/user/exist",
             "/**/user/get/user/ticket/list"

@@ -17,11 +17,6 @@ import java.util.List;
 public class ProgramClientFallback implements ProgramClient {
     
     @Override
-    public ApiResponse<Boolean> operateSeatLockAndTicketCategoryRemainNumber(final ReduceRemainNumberDto reduceRemainNumberDto) {
-        return ApiResponse.error(BaseCode.SYSTEM_ERROR);
-    }
-    
-    @Override
     public ApiResponse<List<TicketCategoryDetailVo>> selectList(final TicketCategoryListDto ticketCategoryDto) {
         return ApiResponse.error(BaseCode.SYSTEM_ERROR);
     }

@@ -7,16 +7,25 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.stellaris.core.RedisKeyManage;
+import com.stellaris.client.OrderClient;
+import com.stellaris.common.ApiResponse;
 import com.stellaris.dto.ProgramManageDto;
+import com.stellaris.dto.SeatInventoryCountDto;
+import com.stellaris.dto.SeatInventoryQueryDto;
+import com.stellaris.dto.SeatInventorySnapshotDto;
 import com.stellaris.dto.SeatPageManageDto;
 import com.stellaris.entity.Seat;
 import com.stellaris.entity.TicketCategory;
 import com.stellaris.enums.SellStatus;
+import com.stellaris.enums.BaseCode;
 import com.stellaris.mapper.SeatMapper;
 import com.stellaris.mapper.TicketCategoryMapper;
 import com.stellaris.page.PageUtil;
 import com.stellaris.redis.RedisCache;
 import com.stellaris.redis.RedisKeyBuild;
+import com.stellaris.service.reference.SeatReservationKeys;
+import com.stellaris.service.reference.ReferenceSeatInventoryService;
+import com.stellaris.vo.SeatVo;
 import com.stellaris.util.StringUtil;
 import com.stellaris.vo.SeatManageVo;
 import com.stellaris.vo.TicketCategoryDbManageVo;
@@ -52,6 +61,12 @@ public class ProgramManageService  {
     
     @Autowired
     private RedisCache redisCache;
+
+    @Autowired
+    private OrderClient orderClient;
+
+    @Autowired
+    private ReferenceSeatInventoryService referenceSeatInventoryService;
     
     
     public List<TicketCategoryDetailManageVo> ticketCategoryList(ProgramManageDto programManageDto) {
@@ -61,16 +76,25 @@ public class ProgramManageService  {
         return ticketCategorieList.stream().map(ticketCategory -> {
             TicketCategoryDetailManageVo ticketCategoryDetailManageVo = new TicketCategoryDetailManageVo();
             BeanUtil.copyProperties(ticketCategory,ticketCategoryDetailManageVo);
-            ticketCategoryDetailManageVo.setDbRemainNumber(ticketCategory.getRemainNumber());
-            //Key:票档id，value:节目id
-            Map<String, Long> ticketCategoryRemainNumber =
-                    redisCache.getAllMapForHash(RedisKeyBuild.createRedisKey(RedisKeyManage.PROGRAM_TICKET_REMAIN_NUMBER_HASH_RESOLUTION,
-                            ticketCategory.getProgramId(),ticketCategory.getId()), Long.class);
-            if (CollectionUtil.isNotEmpty(ticketCategoryRemainNumber)) {
-                ticketCategoryDetailManageVo.setRedisRemainNumber(ticketCategoryRemainNumber.get(ticketCategory.getId().toString()));
-            }
+            ticketCategoryDetailManageVo.setDbRemainNumber(tradeAvailableCount(
+                    ticketCategory.getProgramId(), ticketCategory.getId()));
+            Number redisCount = (Number) redisCache.getInstance().opsForZSet()
+                    .size(SeatReservationKeys.available(ticketCategory.getProgramId(), ticketCategory.getId()));
+            ticketCategoryDetailManageVo.setRedisRemainNumber(redisCount == null ? 0L : redisCount.longValue());
             return ticketCategoryDetailManageVo;
         }).collect(Collectors.toList());
+    }
+
+    private long tradeAvailableCount(Long programId, Long ticketCategoryId) {
+        SeatInventoryCountDto dto = new SeatInventoryCountDto();
+        dto.setProgramId(programId);
+        dto.setTicketCategoryId(ticketCategoryId);
+        ApiResponse<Long> response = orderClient.availableSeatCount(dto);
+        if (response == null || !Objects.equals(response.getCode(), BaseCode.SUCCESS.getCode())
+                || response.getData() == null) {
+            throw new IllegalStateException("trade inventory count is unavailable");
+        }
+        return response.getData();
     }
     
     public List<TicketCategoryDbManageVo> dbTicketCategoryList(ProgramManageDto programManageDto) {
@@ -95,40 +119,29 @@ public class ProgramManageService  {
         if (CollectionUtil.isEmpty(seatPage.getRecords())) {
             return seatManageVoPage;
         }
-        //key:票档id，value:座位集合
-        Map<Long, List<Seat>> seatMap = seatPage.getRecords().stream().collect(Collectors.groupingBy(Seat::getTicketCategoryId));
-        //redis中座位数据 key:座位id，value:座位对象
-        Map<Long,Seat> redisSeatMap = new HashMap<>(seatPage.getRecords().size());
-        for (Entry<Long, List<Seat>> entry : seatMap.entrySet()) {
-            Long ticketCategoryId = entry.getKey();
-            List<String> seatIdList = entry.getValue().stream().map(Seat::getId).map(String::valueOf).toList();
-            //从redis中批量查询未售卖的座位
-            List<Seat> noSoldSeatList = redisCache.multiGetForHash(RedisKeyBuild.createRedisKey(
-                    RedisKeyManage.PROGRAM_SEAT_NO_SOLD_RESOLUTION_HASH, seatPageManageDto.getProgramId(), ticketCategoryId),seatIdList,Seat.class);
-            //从redis中批量查询锁定中的座位
-            List<Seat> lockSeatList = redisCache.multiGetForHash(RedisKeyBuild.createRedisKey(
-                    RedisKeyManage.PROGRAM_SEAT_LOCK_RESOLUTION_HASH, seatPageManageDto.getProgramId(), ticketCategoryId),seatIdList,Seat.class);
-            //从redis中批量查询未售卖的座位
-            List<Seat> soldSeatList = redisCache.multiGetForHash(RedisKeyBuild.createRedisKey(
-                    RedisKeyManage.PROGRAM_SEAT_SOLD_RESOLUTION_HASH, seatPageManageDto.getProgramId(), ticketCategoryId),seatIdList,Seat.class);
-            for (Seat seat : noSoldSeatList) {
-                redisSeatMap.put(seat.getId(),seat);
-            }
-            for (Seat seat : lockSeatList) {
-                redisSeatMap.put(seat.getId(),seat);
-            }
-            for (Seat seat : soldSeatList) {
-                redisSeatMap.put(seat.getId(),seat);
-            }
+        SeatInventoryQueryDto query = new SeatInventoryQueryDto();
+        query.setProgramId(seatPageManageDto.getProgramId());
+        ApiResponse<List<SeatInventorySnapshotDto>> tradeResponse = orderClient.currentSeatInventory(query);
+        if (tradeResponse == null || !Objects.equals(tradeResponse.getCode(), BaseCode.SUCCESS.getCode())
+                || tradeResponse.getData() == null) {
+            throw new IllegalStateException("trade inventory is unavailable");
         }
+        Map<Long, SeatInventorySnapshotDto> tradeSeatMap = tradeResponse.getData().stream()
+                .collect(Collectors.toMap(SeatInventorySnapshotDto::getSeatId, item -> item));
+        Map<Long, SeatVo> redisSeatMap = referenceSeatInventoryService.findCurrentByIds(
+                        seatPageManageDto.getProgramId(),
+                        seatPage.getRecords().stream().map(Seat::getId).toList()).stream()
+                .collect(Collectors.toMap(SeatVo::getId, item -> item));
         
         List<SeatManageVo> seatManageVoList = new ArrayList<>();
         for (Seat seat : seatPage.getRecords()) {
             SeatManageVo seatManageVo = new SeatManageVo();
             BeanUtil.copyProperties(seat,seatManageVo);
-            seatManageVo.setDbSellStatus(seat.getSellStatus());
-            seatManageVo.setDbSellStatusName(SellStatus.getMsg(seat.getSellStatus()));
-            Seat redisSeat = redisSeatMap.get(seat.getId());
+            SeatInventorySnapshotDto tradeSeat = tradeSeatMap.get(seat.getId());
+            if (tradeSeat == null) throw new IllegalStateException("trade inventory misses seat " + seat.getId());
+            seatManageVo.setDbSellStatus(tradeSeat.getSellStatus());
+            seatManageVo.setDbSellStatusName(SellStatus.getMsg(tradeSeat.getSellStatus()));
+            SeatVo redisSeat = redisSeatMap.get(seat.getId());
             if (Objects.nonNull(redisSeat)) {
                 seatManageVo.setRedisSellStatus(redisSeat.getSellStatus());
                 seatManageVo.setRedisSellStatusName(Optional.ofNullable(SellStatus.getMsg(redisSeat.getSellStatus()))

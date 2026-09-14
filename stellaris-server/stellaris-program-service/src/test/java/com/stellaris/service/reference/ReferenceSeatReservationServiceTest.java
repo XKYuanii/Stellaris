@@ -1,19 +1,44 @@
 package com.stellaris.service.reference;
 
 import com.alibaba.fastjson.JSON;
+import com.stellaris.dto.SeatInventorySnapshotDto;
 import com.stellaris.enums.SellStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
 
 import java.nio.charset.StandardCharsets;
 import java.math.BigDecimal;
+import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 class ReferenceSeatReservationServiceTest {
+
+    @Test
+    void validatesLockedTradeSnapshotBeforeRedisReset() {
+        SeatInventorySnapshotDto locked = new SeatInventorySnapshotDto();
+        locked.setSeatId(10L);
+        locked.setTicketCategoryId(20L);
+        locked.setPriceInCents(3000L);
+        locked.setSellStatus(SellStatus.LOCK.getCode());
+        locked.setReservationId("intent-1");
+        locked.setOrderNumber(1001L);
+        locked.setUserId(7L);
+        locked.setTicketUserId(8L);
+        locked.setRequestFingerprint("fingerprint");
+        locked.setReservationExpireTime(new Date(123456789L));
+
+        ReferenceSeatInventoryService.validateTradeState(Map.of(locked.getSeatId(), locked));
+
+        assertThat(ReferenceSeatInventoryService.expirationScore(locked)).isEqualTo(123456789L);
+        locked.setReservationId(null);
+        assertThatIllegalStateException().isThrownBy(() ->
+                ReferenceSeatInventoryService.validateTradeState(Map.of(locked.getSeatId(), locked)));
+    }
 
     @Test
     void usesOneRedisClusterHashTagForAllProgramKeys() {
@@ -23,7 +48,9 @@ class ReferenceSeatReservationServiceTest {
         assertThat(SeatReservationKeys.reservation(123L)).contains("{sale:11}");
         assertThat(SeatReservationKeys.receipt(123L, "r1")).contains("{sale:11}");
         assertThat(SeatReservationKeys.eventStream(11)).contains("{sale:11}");
-        assertThat(SeatReservationKeys.eventDeadStream(11)).contains("{sale:11}");
+        assertThat(com.stellaris.domain.OrderReservationStreamKeys.expirationIndex(11)).contains("{sale:11}");
+        assertThat(com.stellaris.domain.OrderReservationStreamKeys
+                .parseExpirationMember("123|intent-1").programId()).isEqualTo(123L);
         assertThat(SeatReservationKeys.maintenance(123L)).contains("{sale:11}");
         assertThat(SeatReservationKeys.version(123L)).contains("{sale:11}");
     }
@@ -31,7 +58,7 @@ class ReferenceSeatReservationServiceTest {
     @Test
     void rejectsDuplicateSeatBeforeRedisCall() {
         SeatReservationRequest request = new SeatReservationRequest("intent-1", 1L, 9L, 6,
-                "fingerprint", "{\"eventId\":1}", System.currentTimeMillis() + 60_000, 86_400_000, List.of(
+                "fingerprint", "{\"eventId\":1}", System.currentTimeMillis() + 60_000, 86_400_000, 100_000, List.of(
                 new SeatReservationRequest.Seat(10L, 1L, 10_000L, 1L),
                 new SeatReservationRequest.Seat(10L, 1L, 10_000L, 2L)));
 
@@ -135,6 +162,20 @@ class ReferenceSeatReservationServiceTest {
 
         assertThat(lua.indexOf("redis.call('SET', KEYS[11]")).isGreaterThan(lua.indexOf("redis.call('XADD', KEYS[8]"));
         assertThat(lua.indexOf("redis.call('SET', KEYS[11]")).isGreaterThan(lua.indexOf("SEAT_UNAVAILABLE"));
+        assertThat(lua.indexOf("redis.call('XLEN', KEYS[8])")).isLessThan(lua.indexOf("redis.call('ZREM'"));
+    }
+
+    @Test
+    void releaseLuaRejectsMissingOrMismatchedOwnersBeforeAnyMutation() throws Exception {
+        String lua;
+        try (var input = new ClassPathResource("lua/orderReservationRelease.lua").getInputStream()) {
+            lua = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
+
+        assertThat(lua).contains("return 'MISSING_RESERVATION'")
+                .contains("return 'OWNER_MISMATCH'");
+        assertThat(lua.indexOf("return 'OWNER_MISMATCH'"))
+                .isLessThan(lua.indexOf("redis.call('XDEL'"));
     }
 
     private com.stellaris.vo.SeatVo seat(long id, long categoryId, int row, int column, int status) {

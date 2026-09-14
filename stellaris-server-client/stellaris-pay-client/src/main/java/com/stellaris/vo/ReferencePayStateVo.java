@@ -12,6 +12,9 @@ public class ReferencePayStateVo implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
     private String outOrderNo;
+    private String payChannel;
     private Integer payBillStatus;
     private BigDecimal payAmount;
+    /** For NO_PAY, true only when this response actually reached the payment channel. */
+    private Boolean channelVerified;
 }

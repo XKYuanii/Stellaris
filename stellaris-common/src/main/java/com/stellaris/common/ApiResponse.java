@@ -42,7 +42,7 @@ public class ApiResponse<T> implements Serializable {
     
     public static <T> ApiResponse<T> error(Integer code, T data) {
         ApiResponse<T> apiResponse = new ApiResponse<T>();
-        apiResponse.code = -100;
+        apiResponse.code = code;
         apiResponse.data = data;
         return apiResponse;
     }

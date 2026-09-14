@@ -2,7 +2,7 @@ package com.stellaris.service.reference;
 
 import com.alibaba.fastjson.JSON;
 import com.baidu.fsg.uid.UidGenerator;
-import com.stellaris.domain.OrderCreateMq;
+import com.stellaris.domain.OrderCreateEvent;
 import com.stellaris.dto.ProgramOrderCreateDto;
 import com.stellaris.dto.SeatDto;
 import com.stellaris.enums.BaseCode;
@@ -12,6 +12,7 @@ import com.stellaris.vo.SeatVo;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -26,7 +27,7 @@ import java.util.Objects;
 
 /**
  * v5 唯一下单编排：每次候选尝试由一次 O(k) Lua 原子完成锁座、限购和 XADD。
- * 在线链路不写 MySQL Intent/Outbox；Redis Stream 中继直接把事件投递到 Kafka。
+ * Redis Lua 原子预占座位并写入 Stream；订单服务直接消费并在单交易库事务中落单。
  */
 @Slf4j
 @Service
@@ -49,6 +50,8 @@ public class ReferenceOrderOrchestrator {
     private long expiryCleanupGraceMs = 60_000;
     @Value("${reference-order.idempotency-receipt-ttl-ms:86400000}")
     private long idempotencyReceiptTtlMs = 86_400_000;
+    @Value("${reference-order.max-stream-length:100000}")
+    private long maxStreamLength = 100_000;
 
     public ReferenceOrderOrchestrator(ReferenceSeatInventoryService inventoryService,
                                       ReferenceSeatReservationService reservationService,
@@ -63,47 +66,48 @@ public class ReferenceOrderOrchestrator {
     }
 
     public String create(ProgramOrderCreateDto request) {
+        return create(request, null);
+    }
+
+    public Mono<ReferenceSeatInventoryService.CandidateSelection> prepareAutomaticSelectionAsync(
+            ProgramOrderCreateDto request) {
+        return inventoryService.findCandidateSelectionAsync(request.getProgramId(),
+                request.getTicketCategoryId(), request.getTicketCount(),
+                Math.max(request.getTicketCount(), candidateLimit), request.getRequestId());
+    }
+
+    public String create(ProgramOrderCreateDto request,
+                         ReferenceSeatInventoryService.CandidateSelection preparedSelection) {
         validate(request);
         String intentId = digest(request.getProgramId() + ":" + request.getUserId() + ":" + request.getRequestId());
         String fingerprint = requestFingerprint(request);
-        String previousPayload = reservationService.eventPayload(request.getProgramId(), intentId);
-        if (previousPayload != null) {
-            if (!Objects.equals(fingerprint,
-                    reservationService.requestFingerprint(request.getProgramId(), intentId))) {
-                throw new StellarisFrameException(BaseCode.PARAMETER_ERROR);
-            }
-            if ("RELEASED".equals(reservationService.finalState(request.getProgramId(), intentId))) {
-                throw new StellarisFrameException(BaseCode.SEAT_SOLD);
-            }
-            OrderCreateMq previous = JSON.parseObject(previousPayload, OrderCreateMq.class);
-            if (previous == null || previous.getOrderNumber() == null) {
-                throw new IllegalStateException("idempotency receipt has no order number: " + intentId);
-            }
-            return String.valueOf(previous.getOrderNumber());
-        }
-
-        Long orderNumber = uidGenerator.getOrderNumber(request.getUserId());
+        Long orderNumber = uidGenerator.getId();
         Long eventId = uidGenerator.getUid();
         long expireAtMillis = System.currentTimeMillis() + reservationTimeoutMs;
         if (request.getSeatDtoList() != null && !request.getSeatDtoList().isEmpty()) {
             List<SeatVo> seats = inventoryService.findByIds(request.getProgramId(),
                     request.getSeatDtoList().stream().map(SeatDto::getId).toList());
             SeatReservationResult result = reserve(request, intentId, fingerprint, orderNumber, eventId,
-                    expireAtMillis, seats);
+                    expireAtMillis, seats, inventoryService.currentVersion(request.getProgramId()));
             if (!result.success()) {
                 throw reservationFailure(result);
             }
-            return persistedOrderNumber(request.getProgramId(), intentId);
+            return result.replayed() ? persistedOrderNumber(request.getProgramId(), intentId)
+                    : String.valueOf(orderNumber);
         }
-        return createAutomatic(request, intentId, fingerprint, orderNumber, eventId, expireAtMillis);
+        return createAutomatic(request, intentId, fingerprint, orderNumber, eventId, expireAtMillis,
+                preparedSelection);
     }
 
     private String createAutomatic(ProgramOrderCreateDto request, String intentId, String fingerprint,
-                                   Long orderNumber, Long eventId, long expireAtMillis) {
+                                   Long orderNumber, Long eventId, long expireAtMillis,
+                                   ReferenceSeatInventoryService.CandidateSelection preparedSelection) {
         autoSeatMetrics.request();
-        List<List<SeatVo>> groups = inventoryService.findCandidateGroups(request.getProgramId(),
-                request.getTicketCategoryId(), request.getTicketCount(),
-                Math.max(request.getTicketCount(), candidateLimit), request.getRequestId());
+        ReferenceSeatInventoryService.CandidateSelection selection = preparedSelection != null
+                ? preparedSelection
+                : inventoryService.findCandidateSelection(request.getProgramId(), request.getTicketCategoryId(),
+                request.getTicketCount(), Math.max(request.getTicketCount(), candidateLimit), request.getRequestId());
+        List<List<SeatVo>> groups = selection.groups();
         if (groups.isEmpty()) {
             autoSeatMetrics.finalFailure("NO_CANDIDATE_GROUP", 0);
             throw new StellarisFrameException(BaseCode.SEAT_NOT_EXIST);
@@ -115,7 +119,7 @@ public class ReferenceOrderOrchestrator {
             List<SeatVo> seats = groups.get(attemptOrder.get(attemptIndex));
             long attemptStarted = System.nanoTime();
             SeatReservationResult result = reserve(request, intentId, fingerprint, orderNumber, eventId,
-                    expireAtMillis, seats);
+                    expireAtMillis, seats, selection.saleVersion());
             long elapsedMicros = (System.nanoTime() - attemptStarted) / 1_000;
             List<Long> candidateSeatIds = seats.stream().map(SeatVo::getId).toList();
             log.debug("autoSeatAttempt requestId={} userId={} programId={} ticketCategoryId={} "
@@ -125,12 +129,13 @@ public class ReferenceOrderOrchestrator {
             if (result.success()) {
                 autoSeatMetrics.complete(attemptIndex);
                 if (attemptIndex > 0) {
-                    log.info("autoSeatRecovered requestId={} userId={} programId={} ticketCategoryId={} "
+                    log.debug("autoSeatRecovered requestId={} userId={} programId={} ticketCategoryId={} "
                                     + "retryCount={} candidateSeatIds={} elapsedMicros={}",
                             request.getRequestId(), request.getUserId(), request.getProgramId(),
                             request.getTicketCategoryId(), attemptIndex, candidateSeatIds, elapsedMicros);
                 }
-                return persistedOrderNumber(request.getProgramId(), intentId);
+                return result.replayed() ? persistedOrderNumber(request.getProgramId(), intentId)
+                        : String.valueOf(orderNumber);
             }
             lastResult = result;
             if (!result.retryableSeatConflict()) {
@@ -141,7 +146,7 @@ public class ReferenceOrderOrchestrator {
             boolean hasNextCandidate = attemptIndex + 1 < attemptOrder.size();
             if (hasNextCandidate) {
                 autoSeatMetrics.retry(result.code());
-                log.info("autoSeatConflictRetry requestId={} userId={} programId={} ticketCategoryId={} "
+                log.debug("autoSeatConflictRetry requestId={} userId={} programId={} ticketCategoryId={} "
                                 + "retryIndex={} candidateSeatIds={} luaCode={} elapsedMicros={}",
                         request.getRequestId(), request.getUserId(), request.getProgramId(),
                         request.getTicketCategoryId(), attemptIndex, candidateSeatIds, result.code(), elapsedMicros);
@@ -155,9 +160,12 @@ public class ReferenceOrderOrchestrator {
 
     private SeatReservationResult reserve(ProgramOrderCreateDto request, String intentId, String fingerprint,
                                           Long orderNumber, Long eventId, long expireAtMillis,
-                                          List<SeatVo> seats) {
-        OrderCreateMq message = programOrderService.buildReferenceOrderMessage(request, seats, orderNumber);
+                                          List<SeatVo> seats, String saleVersion) {
+        OrderCreateEvent message = programOrderService.buildReferenceOrderMessage(request, seats, orderNumber);
         message.setRequestId(request.getRequestId());
+        message.setRequestFingerprint(fingerprint);
+        message.setAccountLimit(request.getServerAccountLimit());
+        message.setSaleVersion(saleVersion);
         message.setIntentId(intentId);
         message.setEventId(eventId);
         message.setSeatSnapshot(JSON.toJSONString(seats));
@@ -165,15 +173,15 @@ public class ReferenceOrderOrchestrator {
         SeatReservationRequest reservation = new SeatReservationRequest(intentId, request.getProgramId(),
                 request.getUserId(), Objects.requireNonNullElse(request.getServerAccountLimit(), 0),
                 fingerprint, JSON.toJSONString(message), expireAtMillis + expiryCleanupGraceMs,
-                idempotencyReceiptTtlMs, toSeats(message));
+                idempotencyReceiptTtlMs, maxStreamLength, toSeats(message));
         return reservationService.reserveManual(reservation);
     }
 
     private String persistedOrderNumber(Long programId, String intentId) {
         // 重复请求必须返回第一次生成的订单号，不能返回本次已废弃的新 ID。
         String persistedPayload = reservationService.eventPayload(programId, intentId);
-        OrderCreateMq persisted = persistedPayload == null ? null
-                : JSON.parseObject(persistedPayload, OrderCreateMq.class);
+        OrderCreateEvent persisted = persistedPayload == null ? null
+                : JSON.parseObject(persistedPayload, OrderCreateEvent.class);
         if (persisted == null || persisted.getOrderNumber() == null) {
             throw new IllegalStateException("successful reservation has no recoverable stream payload: " + intentId);
         }
@@ -186,6 +194,9 @@ public class ReferenceOrderOrchestrator {
         }
         if ("IDEMPOTENCY_CONFLICT".equals(result.code())) {
             return new StellarisFrameException(BaseCode.PARAMETER_ERROR);
+        }
+        if ("ORDER_BACKLOG_LIMIT".equals(result.code())) {
+            return new StellarisFrameException(BaseCode.ORDER_ACCEPTANCE_BUSY);
         }
         return new StellarisFrameException(BaseCode.SEAT_SOLD);
     }
@@ -231,7 +242,7 @@ public class ReferenceOrderOrchestrator {
         return digest(JSON.toJSONString(canonical));
     }
 
-    private List<SeatReservationRequest.Seat> toSeats(OrderCreateMq message) {
+    private List<SeatReservationRequest.Seat> toSeats(OrderCreateEvent message) {
         return message.getOrderTicketUserCreateDtoList().stream()
                 .map(ticket -> new SeatReservationRequest.Seat(ticket.getSeatId(), ticket.getTicketCategoryId(),
                         ticket.getOrderPrice().movePointRight(2).longValueExact(), ticket.getTicketUserId()))

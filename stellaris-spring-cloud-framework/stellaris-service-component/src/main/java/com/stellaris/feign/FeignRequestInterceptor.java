@@ -55,7 +55,7 @@ public class FeignRequestInterceptor implements RequestInterceptor {
         String value = request == null ? null : request.getHeader(name);
         if (StringUtil.isEmpty(value)) {
             // BusinessThreadPool propagates BaseParameterHolder rather than RequestContextHolder.
-            // Kafka consumers and scheduled jobs have neither context and therefore still carry no identity.
+            // Background consumers and scheduled jobs have neither context and therefore still carry no identity.
             value = BaseParameterHolder.getParameter(name);
         }
         return value;

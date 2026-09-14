@@ -5,6 +5,10 @@ import com.stellaris.enums.BaseCode;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -21,6 +25,15 @@ import java.util.stream.Collectors;
 @Slf4j
 @RestControllerAdvice
 public class DefaultExceptionHandler {
+
+    /** Missing MVC routes are client errors, not application failures. */
+    @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
+    public ResponseEntity<ApiResponse<String>> notFoundHandler(HttpServletRequest request, Exception exception) {
+        String message = String.format(BaseCode.NOT_FOUND.getMsg(), request.getMethod(), request.getRequestURI());
+        log.warn("接口不存在 method:{} url:{}", request.getMethod(), getRequestUrl(request));
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error(BaseCode.NOT_FOUND.getCode(), message));
+    }
 
     /**
     * 业务异常

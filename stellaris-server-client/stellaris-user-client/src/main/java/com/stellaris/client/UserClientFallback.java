@@ -26,7 +26,8 @@ public class UserClientFallback implements UserClient {
     }
     
     @Override
-    public ApiResponse<List<TicketUserVo>> list(final TicketUserListDto dto) {
+    public ApiResponse<List<TicketUserVo>> list(final String authenticatedUserId,
+                                                 final TicketUserListDto dto) {
         return ApiResponse.error(BaseCode.SYSTEM_ERROR);
     }
     

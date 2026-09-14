@@ -31,7 +31,7 @@ public class ProgramOrderController {
     @Autowired
     private CurrentRequestIdentity currentRequestIdentity;
     
-    @Operation(summary  = "购票：限流 + 有界 Lua/Redis Stream + Kafka")
+    @Operation(summary  = "购票：限流 + Redis Lua 原子预占 + Stream 异步落单")
     @PostMapping(value = "/create/v5")
     public ApiResponse<String> createV5(@Valid @RequestBody ProgramOrderCreateDto programOrderCreateDto) {
         Long currentUserId = currentRequestIdentity.requireUserId();

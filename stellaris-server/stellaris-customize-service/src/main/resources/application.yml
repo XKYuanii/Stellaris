@@ -1,6 +1,10 @@
 #服务端口
 server:
   port: 6084
+# v5 已下线延迟取消消息处理器；历史消息类型仍保留用于后台展示，默认不再调度旧对账任务。
+message-record:
+  reconciliation:
+    enabled: false
 # 应用名称
 spring:
   profiles:
@@ -35,24 +39,6 @@ spring:
         ip: ${STELLARIS_NACOS_DISCOVERY_IP:127.0.0.1}
         username: nacos
         password: nacos
-  kafka:
-    bootstrap-servers: ${STELLARIS_KAFKA_SERVERS:127.0.0.1:9092}
-    consumer:
-      #默认的消费组ID
-      group-id: api_data
-      #是否自动提交offset
-      enable-auto-commit: true
-      #提交offset延时
-      auto-commit-interval: 2000
-      # 当kafka中没有初始offset或offset超出范围时将自动重置offset
-      # earliest:重置为分区中最小的offset;
-      # latest:重置为分区中最新的offset(消费分区中新产生的数据);
-      # none:只要有一个分区不存在已提交的offset,就抛出异常;
-      auto-offset-reset: latest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      # 主题
-      topic: save_api_data   
 mybatis-plus:
   mapper-locations: classpath:mapper/*.xml
   global-config:

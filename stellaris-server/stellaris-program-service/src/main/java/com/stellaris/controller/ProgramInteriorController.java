@@ -2,8 +2,6 @@ package com.stellaris.controller;
 
 import com.stellaris.common.ApiResponse;
 import com.stellaris.dto.ProgramOperateDataDto;
-import com.stellaris.dto.ReduceRemainNumberDto;
-import com.stellaris.service.ProgramService;
 import com.stellaris.service.reference.ReferenceReservationTransitionService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
@@ -23,19 +21,10 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProgramInteriorController {
     
     @Autowired
-    private ProgramService programService;
-
-    @Autowired
     private ReferenceReservationTransitionService referenceReservationTransitionService;
     
     
-    @Operation(summary  = "扣减库存相关操作")
-    @PostMapping(value = "/reduce/remain/number")
-    public ApiResponse<Boolean> operateSeatLockAndTicketCategoryRemainNumber(@Valid @RequestBody ReduceRemainNumberDto reduceRemainNumberDto) {
-        return ApiResponse.ok(programService.operateSeatLockAndTicketCategoryRemainNumber(reduceRemainNumberDto));
-    }
-    
-    @Operation(summary = "支付或取消后的座位迁移")
+    @Operation(summary = "支付或取消后的 Redis 座位状态同步")
     @PostMapping(value = "/reference/reservation/transition")
     public ApiResponse<Boolean> operateReferenceReservation(@Valid @RequestBody ProgramOperateDataDto dto) {
         return ApiResponse.ok(referenceReservationTransitionService.transition(dto));

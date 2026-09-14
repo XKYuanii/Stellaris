@@ -103,10 +103,6 @@
             <artifactId>mysql-connector-j</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.springframework.kafka</groupId>
-            <artifactId>spring-kafka</artifactId>
-        </dependency>
-        <dependency>
             <groupId>com.github.ulisesbocchio</groupId>
             <artifactId>jasypt-spring-boot-starter</artifactId>
             <version>${jasypt.version}</version>
@@ -130,13 +126,13 @@
         </dependency>
         <dependency>
             <groupId>com.stellaris</groupId>
-            <artifactId>stellaris-service-delay-queue-framework</artifactId>
+            <artifactId>stellaris-thread-pool-framework</artifactId>
             <version>${revision}</version>
         </dependency>
         <dependency>
-            <groupId>com.stellaris</groupId>
-            <artifactId>stellaris-thread-pool-framework</artifactId>
-            <version>${revision}</version>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
     

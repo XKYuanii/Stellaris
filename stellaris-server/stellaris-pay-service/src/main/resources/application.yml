@@ -118,10 +118,20 @@ refund-intent-retry:
   max-attempts: 10
   backoff-ms: 60000
 
+payment-channel-reconciliation:
+  # 最多并发 10 个渠道查单；20 条批次最坏分两波完成，避免串行查询超过 Order 的超时。
+  max-queries-per-batch: 20
+  executor:
+    core-size: 10
+    max-size: 10
+    queue-capacity: 100
+
 alipay:
   appId: 9021000134628973
   sellerId: 2088721028872203
   gatewayUrl: https://openapi-sandbox.dl.alipaydev.com/gateway.do
+  connectTimeout: 2000
+  readTimeout: 5000
   merchantPrivateKey: ${ALIPAY_MERCHANT_PRIVATE_KEY:}
   alipayPublicKey: MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApcNgbnwGS3gDGv9ohSJaykXmJvfq1m0xrlawaJf5oJaYFC5lkGyYaNG115XBInt+NDL8HnBXdMiHs5PfSZXcSW0zmEF1/pf/d3nwdGr5z+NMRND1eRwKJ+LhB/eZMqaS2CeswQxh83etI+72i3TwFsrfNcE2ylWDvBfl1g9VZ/yCcRbpPejEcdok2cx7bcqQwRs18OrGeL1ix+R9DKLYtOIiJlzAZpGsqUSNlZgN2rT62ZQmjKCH/vzF1DLgqV8s20sT0Xx1h4YPDPNoAH0wgxExcOQbuZsc3EIiJhfVlhnQXgxlu+ZIC+2oOBqvf3XlarEagq/PSt9iacjcGzpprQIDAQAB
   contentKey: ${ALIPAY_CONTENT_KEY:}

@@ -2,9 +2,11 @@ package com.stellaris.client;
 
 import com.stellaris.common.ApiResponse;
 import com.stellaris.dto.AccountOrderCountDto;
-import com.stellaris.dto.ReferenceOrderStateQueryDto;
+import com.stellaris.dto.SeatInventoryInitializeDto;
+import com.stellaris.dto.SeatInventoryCountDto;
+import com.stellaris.dto.SeatInventoryQueryDto;
+import com.stellaris.dto.SeatInventorySnapshotDto;
 import com.stellaris.vo.AccountOrderCountVo;
-import com.stellaris.vo.ReferenceOrderStateVo;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,17 +29,17 @@ public interface OrderClient {
      * @param dto 参数
      * @return 结果
      * */
-    @PostMapping("/order/account/order/count")
+    @PostMapping("/order/interior/account/order/count")
     ApiResponse<AccountOrderCountVo> accountOrderCount(AccountOrderCountDto dto);
     
-    /**
-     * 重置虚拟分片路由缓存
-     * @return 结果
-     * */
-    @PostMapping(value = "/order/reload/route/mapping/cache")
-    ApiResponse<Void> reloadRouteMappingCache();
+    /** 开售前幂等发布交易库座位销售快照。 */
+    @PostMapping("/order/interior/reference/inventory/initialize")
+    ApiResponse<Boolean> initializeSeatInventory(SeatInventoryInitializeDto dto);
 
-    /** v5 三层对账的内部订单事实批量查询。 */
-    @PostMapping("/order/reference/reconciliation/state/batch")
-    ApiResponse<List<ReferenceOrderStateVo>> referenceStateBatch(ReferenceOrderStateQueryDto dto);
+    /** Redis 重建时读取交易库权威座位销售状态。 */
+    @PostMapping("/order/interior/reference/inventory/current")
+    ApiResponse<List<SeatInventorySnapshotDto>> currentSeatInventory(SeatInventoryQueryDto dto);
+
+    @PostMapping("/order/interior/reference/inventory/available/count")
+    ApiResponse<Long> availableSeatCount(SeatInventoryCountDto dto);
 }

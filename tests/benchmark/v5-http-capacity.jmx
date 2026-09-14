@@ -2,7 +2,7 @@
 <jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
   <hashTree>
     <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="V5 HTTP Capacity Point" enabled="true">
-      <stringProp name="TestPlan.comments">Measure only POST /program/order/create/v5 through HTTP response. One distinct user and one request per synchronized thread.</stringProp>
+      <stringProp name="TestPlan.comments">Measure one synchronized V5 create burst. One distinct user and one request per thread; host, port and path select the direct or Gateway entry.</stringProp>
       <boolProp name="TestPlan.functional_mode">false</boolProp>
       <boolProp name="TestPlan.tearDown_on_shutdown">true</boolProp>
       <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
@@ -11,8 +11,9 @@
           <elementProp name="protocol" elementType="Argument"><stringProp name="Argument.name">protocol</stringProp><stringProp name="Argument.value">${__P(protocol,http)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
           <elementProp name="host" elementType="Argument"><stringProp name="Argument.name">host</stringProp><stringProp name="Argument.value">${__P(host,127.0.0.1)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
           <elementProp name="port" elementType="Argument"><stringProp name="Argument.name">port</stringProp><stringProp name="Argument.value">${__P(port,6086)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
-          <elementProp name="programId" elementType="Argument"><stringProp name="Argument.name">programId</stringProp><stringProp name="Argument.value">${__P(programId,900100)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
-          <elementProp name="ticketCategoryId" elementType="Argument"><stringProp name="Argument.name">ticketCategoryId</stringProp><stringProp name="Argument.value">${__P(ticketCategoryId,900101)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+          <elementProp name="path" elementType="Argument"><stringProp name="Argument.name">path</stringProp><stringProp name="Argument.value">${__P(path,/program/order/create/v5)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+          <elementProp name="programId" elementType="Argument"><stringProp name="Argument.name">programId</stringProp><stringProp name="Argument.value">${__P(programId,900000)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+          <elementProp name="ticketCategoryId" elementType="Argument"><stringProp name="Argument.name">ticketCategoryId</stringProp><stringProp name="Argument.value">${__P(ticketCategoryId,900001)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
         </collectionProp>
       </elementProp>
       <stringProp name="TestPlan.user_define_classpath"></stringProp>
@@ -114,7 +115,7 @@ vars.put('requestBody', JsonOutput.toJson([
               <elementProp name="" elementType="HTTPArgument"><boolProp name="HTTPArgument.always_encode">false</boolProp><stringProp name="Argument.value">${requestBody}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
             </collectionProp>
           </elementProp>
-          <stringProp name="HTTPSampler.path">/program/order/create/v5</stringProp>
+          <stringProp name="HTTPSampler.path">${path}</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>

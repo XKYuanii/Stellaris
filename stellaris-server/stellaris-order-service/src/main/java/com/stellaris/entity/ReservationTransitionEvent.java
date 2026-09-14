@@ -8,7 +8,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Date;
 
-/** 订单状态与 v5 节目库存迁移之间的本地可靠命令。 */
+/** 订单终态提交后同步 Redis 展示状态的本地可靠命令。 */
 @Data
 @TableName("d_reservation_transition_event")
 public class ReservationTransitionEvent extends BaseTableData implements Serializable {

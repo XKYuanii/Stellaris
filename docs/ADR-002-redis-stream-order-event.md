@@ -1,39 +1,70 @@
-# ADR-002：锁座 Lua 同时写 Redis Stream
+# ADR-002：Redis Stream 直连单交易库
 
-- 状态：已采用
-- 日期：2026-08-26
-- 范围：v5/reference 创建订单链路
+- 状态：已采用并实现
+- 初始日期：2026-08-26
+- 修订日期：2026-09-11
+- 范围：v5/reference 创建订单与终态同步
+
+## 背景
+
+旧链路在 Redis 锁座后再经过 Kafka 创建订单，同时节目库座位和订单库订单分两次提交。它需要 Stream 中继、Kafka 重试/DLT、跨库库存操作、延迟取消队列和多源对账，仍不能原子解决节目库提交成功而订单库失败的窗口。
+
+创建订单事件只在座位预占成功时产生，堆积量受销售库存约束。该链路当前只有订单服务一个业务消费者，不需要 Kafka 的多订阅者和长期日志能力。
 
 ## 决策
 
-v5 完全取消 MySQL `OrderIntent` 和创建订单 `Outbox` 阶段。请求经过 USER/PROGRAM/GLOBAL 分层限流和本机舱壁后，只访问预热的 Redis 座位模型。单次有界 Lua 对用户选择的 1～6 个座位执行元数据校验、账号配额、`AVAILABLE -> HELD` 和 `XADD`。
+1. Program 在一个有界 Lua 中完成请求幂等、快速限购、座位预占和 XADD。
+2. Order 直接通过 Redis Stream Consumer Group 消费，使用 Pending 重领恢复进程退出留下的记录。
+3. 请求结果、账号最终限购、全部座位 CAS、订单与明细在 stellaris_trade 的一个本地事务中提交。
+4. 事务形成 CREATED、REJECTED 或异常审计事实后才 ACK；XDEL 只是 ACK 后的空间清理。
+5. 支付和取消在交易库中竞争订单唯一终态，并在同一事务写 Redis 待同步记录。
+6. 未支付订单由数据库到期扫描关闭。
+7. 创建订单 Kafka relay/consumer/DLT、Redis 延迟取消队列和跨库库存迁移退出运行主线。
 
-```text
-Gateway admission
-  -> Redis O(k) Lua: quota + hold + XADD
-  -> Redis Stream relay
-  -> Kafka
-  -> MySQL seat owner CAS + order transaction
-```
+    Gateway admission
+      -> Redis O(k) Lua: idempotency + quota hint + reserve + XADD
+      -> Redis Stream Consumer Group
+      -> MySQL local transaction:
+           request idempotency + authoritative quota + seat CAS + order
+      -> ACK + best-effort XDEL
 
-Stream 使用 Consumer Group。16 个分片各由独立 Worker 通过 `XREADGROUP BLOCK 1000ms COUNT n` 实时读取新消息；Kafka 发送全异步，并由全局 in-flight permit 和有界 ACK Executor 背压。中继仅在 Kafka broker 确认后 `XACK`，之后尽力 `XDEL`。进程退出留下的 PEL 消息由每 10 秒运行的独立恢复器处理，不阻塞新消息读取。
+## Stream 处理
 
-恢复器通过 `XPENDING + XCLAIM` 认领 idle 至少 60 秒且不在本机 in-flight 集合的消息。项目使用的 Spring Data Redis 版本没有暴露 `XAUTOCLAIM` 高级接口，该组合在当前版本完成相同的“查询超时 PEL 后认领”语义。达到次数上限后，同槽 Lua 原子迁移到 dead stream、确认并删除源记录，同时提供保持原 eventId/orderNumber 的显式重放。每个 reservationId 另有带 TTL 的 Redis receipt，使响应丢失后的重试在重新自动选座前返回原订单号；这不是 MySQL Intent。
+销售 Key 与 Stream 按 programId % 16 使用 {sale:shard} Hash Tag。同一节目涉及的 Redis Key 保持同槽，多键 Lua 可以在 Cluster 中执行。热门单场仍集中在一个槽，这是原子处理多座位的约束。
 
-链路使用低基数 Micrometer 指标记录 Stream 等待、Kafka 发送、订单创建和端到端耗时，以及 PEL、dead、in-flight 数量。订单号和 eventId 仅写日志，不进入 tag。
+消费者批量读取、逐订单提交。数据库临时故障不 ACK，消息留在 PEL；恢复器对超过 claim-idle-ms 的消息执行 XPENDING + XCLAIM。重复执行由下列约束吸收：
 
-## Cluster 键槽
+- t_order_request.reservation_id 主键；
+- UNIQUE(user_id, request_id)；
+- order_number 唯一；
+- 座位只允许 AVAILABLE -> LOCKED，并绑定 reservation/order；
+- 账号额度使用带上限条件的原子更新。
 
-节目按 `programId % 16` 落到 `{sale:shard}`。同一节目的 meta、available、owner、reservation、配额、过期索引和该分片 Stream 都带相同 Hash Tag，因此多键 Lua 在 Redis Cluster 中同槽执行；不同节目可分散到 16 个槽。
+无法解析或确认是永久业务毒消息时，先写 d_order_stream_failure，再 ACK。人工重放使用原 payload，仍经过相同数据库幂等约束。
 
-## 取舍与边界
+## 背压
 
-- 优点：热路径没有两次 MySQL Intent/Outbox 事务；锁座和事件不存在 Java `kill -9` 中间窗口；结构更适合突出 Redis 高并发裁决。
-- 代价：Redis 从缓存提升为短期可靠事件源，必须配置主从、AOF、Stream PEL 监控和备份；异步复制故障切换仍可能丢最近写入。
-- Kafka 发送确认和 `XACK` 之间允许重复，订单侧必须按 eventId/orderNumber 幂等。
-- `XACK` 成功而 `XDEL` 失败只产生已确认的存储残留，不能重新投递；Kafka 成功而 `XACK` 失败则允许重复投递。
-- claim idle 必须大于 Kafka producer 的 delivery timeout；当前分别为 60 秒和 30 秒。
-- 预订事件携带截止时间；过期事件不能再锁 MySQL 座位。宽限期后仅在源 Stream 记录仍存在、订单事实不存在且 MySQL 未锁定该 reservation 时释放 Redis 预订。
-- MySQL 座位使用 `sell_status=NO_SOLD`、`reservation_id` 和影响行数进行 CAS；延迟取消不能释放后来订单的座位。
+Lua 在任何库存修改之前检查当前分片 Stream 长度；达到 reference-order.max-stream-length 时返回 ORDER_BACKLOG_LIMIT。这是简单的接单保护，不替代对最老消息年龄、PEL、Redis 内存、数据库连接池和事务延迟的监控。阈值必须压测后设置。
 
-本项目面向面试演示，不把该方案描述为端到端 Exactly Once 或绝对零丢失。
+## 数据与事务边界
+
+t_seat_inventory 是座位销售唯一事实，不维护票档余票计数表。Redis available/owner/sold 是准入和展示模型，可以短暂领先或滞后 MySQL。
+
+Redis 与 MySQL 不构成一个事务。Lua 成功表示“已受理”，MySQL 提交才表示“已成单”。锁座与事件不会出现 Java 两步双写窗口，但 Redis 异步复制切换仍可能丢最近写入；该方案不能描述为端到端 Exactly Once 或绝对零丢失。
+
+## 结果
+
+收益：
+
+- 消除座位、账号额度和订单之间的跨业务库提交窗口；
+- 删除 Kafka 创建订单中继及两套死信/重试；
+- 删除 Redis 延迟取消队列和迁移服务默认入口；
+- 每个恢复任务都有单一职责。
+
+代价：
+
+- Redis 承担受理阶段的短期可靠队列，需要验证 AOF、复制、备份和切换；
+- 单交易库承担所有核心写入，需要以真实事务延迟和锁等待决定扩容时机；
+- Stream 不提供 Kafka 式长期回放，长期审计以 MySQL 业务事实为准。
+
+完整 Schema、状态矩阵、演进路径和验收标准见 [交易架构说明](SINGLE_TRADE_STREAM_ARCHITECTURE.md)。

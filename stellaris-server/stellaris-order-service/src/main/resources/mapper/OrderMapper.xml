@@ -27,15 +27,32 @@
         limit 1
     </select>
 
-    <select id="accountOrderCount" resultType="java.lang.Integer">
-        select
-            count(*)
-        from d_order_ticket_user
-        where ( order_status = 1 or order_status = 3)
-        and user_id = #{userId,jdbcType=BIGINT}
-        and program_id = #{programId,jdbcType=BIGINT}
+    <select id="selectExpiredForClose" resultType="com.stellaris.entity.Order">
+        select *
+        from d_order
+        where order_status = #{orderStatus,jdbcType=INTEGER}
+          and expire_time is not null
+          and expire_time &lt;= #{now,jdbcType=TIMESTAMP}
+          and (expiry_next_retry_time is null or expiry_next_retry_time &lt;= #{now,jdbcType=TIMESTAMP})
+          and status = 1
+          and (#{partitionCount,jdbcType=INTEGER} = 1
+               or MOD(id, #{partitionCount,jdbcType=INTEGER}) = #{partitionIndex,jdbcType=INTEGER})
+        order by expire_time, id
+        limit #{limit,jdbcType=INTEGER}
     </select>
-    
+
+    <update id="deferExpiryClose">
+        update d_order
+        set expiry_retry_count = COALESCE(expiry_retry_count, 0) + 1,
+            expiry_next_retry_time = #{nextRetryTime,jdbcType=TIMESTAMP},
+            expiry_last_error = #{lastError,jdbcType=VARCHAR},
+            edit_time = #{now,jdbcType=TIMESTAMP}
+        where id = #{id,jdbcType=BIGINT}
+          and order_status = 1
+          and expire_time &lt;= #{now,jdbcType=TIMESTAMP}
+          and status = 1
+    </update>
+
     <delete id="relDelOrder">
         delete 
         from d_order

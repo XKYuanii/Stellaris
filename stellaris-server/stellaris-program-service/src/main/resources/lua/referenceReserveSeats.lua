@@ -1,8 +1,10 @@
 -- KEYS[1]=ready, 2=maintenance, 3=meta, 4=owner, 5=reservation, 6=result,
 -- 7=accountCount, 8=eventStream, 9=final, 10=expiration, 11=idempotency receipt,
--- 12..n=available ZSETs.
+-- 12=shard expiration index, 13..n=available ZSETs.
 -- ARGV[1]=intentId, 2=seatsJson, 3=eventPayload, 4=userId, 5=accountLimit,
--- 6=requestFingerprint, 7=expireAtMillis, 8=receiptTtlMillis.
+-- 6=requestFingerprint, 7=expireAtMillis, 8=receiptTtlMillis, 9=maxStreamLength,
+-- 10=programId. programId is repeated as a Stream field so a malformed payload
+-- can still be quarantined and its reservation released safely.
 local intent_id = ARGV[1]
 local requested = cjson.decode(ARGV[2])
 local event_payload = ARGV[3]
@@ -12,10 +14,14 @@ local request_fingerprint = ARGV[6]
 local empty_seats = cjson.decode('[]')
 
 local raw_receipt = redis.call('GET', KEYS[11])
+local final_state = redis.call('HGET', KEYS[9], intent_id)
 if raw_receipt then
     local receipt = cjson.decode(raw_receipt)
     if receipt.requestFingerprint ~= request_fingerprint then
         return cjson.encode({success=false, replayed=true, code='IDEMPOTENCY_CONFLICT', seats=empty_seats})
+    end
+    if final_state == 'RELEASED' then
+        return cjson.encode({success=false, replayed=true, code='RESERVATION_RELEASED', seats=empty_seats})
     end
     local replay_result = redis.call('HGET', KEYS[6], intent_id)
     local replay_seats = replay_result and cjson.decode(replay_result) or empty_seats
@@ -28,10 +34,12 @@ if previous then
     if not previous_reservation or cjson.decode(previous_reservation).requestFingerprint ~= request_fingerprint then
         return cjson.encode({success=false, replayed=true, code='IDEMPOTENCY_CONFLICT', seats=empty_seats})
     end
+    if final_state == 'RELEASED' then
+        return cjson.encode({success=false, replayed=true, code='RESERVATION_RELEASED', seats=empty_seats})
+    end
     return cjson.encode({success=true, replayed=true, code='OK', seats=cjson.decode(previous)})
 end
 
-local final_state = redis.call('HGET', KEYS[9], intent_id)
 if final_state then
     return cjson.encode({success=false, replayed=true, code='RESERVATION_' .. final_state, seats=empty_seats})
 end
@@ -40,13 +48,19 @@ if redis.call('EXISTS', KEYS[1]) == 0 or redis.call('EXISTS', KEYS[2]) == 1 then
     return cjson.encode({success=false, replayed=false, code='INVENTORY_NOT_READY', seats=empty_seats})
 end
 
+-- 在任何库存写入前执行积压保护。重复请求已在上面返回，不会被阈值误伤。
+local max_stream_length = tonumber(ARGV[9]) or 0
+if max_stream_length > 0 and redis.call('XLEN', KEYS[8]) >= max_stream_length then
+    return cjson.encode({success=false, replayed=false, code='ORDER_BACKLOG_LIMIT', seats=empty_seats})
+end
+
 local purchased = tonumber(redis.call('HGET', KEYS[7], user_id) or '0')
 if account_limit > 0 and purchased + #requested > account_limit then
     return cjson.encode({success=false, replayed=false, code='ACCOUNT_LIMIT_EXCEEDED', seats=empty_seats})
 end
 
 local available_by_category = {}
-for key_index = 12, #KEYS do
+for key_index = 13, #KEYS do
     local category = string.match(KEYS[key_index], 'available:(.+)$')
     available_by_category[category] = KEYS[key_index]
 end
@@ -88,7 +102,8 @@ for _, selected in ipairs(requested) do
     redis.call('HSET', KEYS[4], seat_id, intent_id)
 end
 -- XADD 和锁座变更位于同一 Lua 原子操作：进程在脚本返回前被 kill，也不会只锁座不留事件。
-local stream_id = redis.call('XADD', KEYS[8], '*', 'intentId', intent_id, 'payload', event_payload)
+local stream_id = redis.call('XADD', KEYS[8], '*',
+    'intentId', intent_id, 'programId', ARGV[10], 'payload', event_payload)
 local reservation = {userId=user_id, ticketCount=#requested, seats=requested,
                      requestFingerprint=request_fingerprint, eventPayload=event_payload, streamId=stream_id}
 redis.call('HSET', KEYS[5], intent_id, cjson.encode(reservation))
@@ -98,4 +113,5 @@ redis.call('SET', KEYS[11], cjson.encode({requestFingerprint=request_fingerprint
            'PX', tonumber(ARGV[8]))
 redis.call('HINCRBY', KEYS[7], user_id, #requested)
 redis.call('ZADD', KEYS[10], tonumber(ARGV[7]), intent_id)
+redis.call('ZADD', KEYS[12], tonumber(ARGV[7]), ARGV[10] .. '|' .. intent_id)
 return cjson.encode({success=true, replayed=false, code='OK', seats=snapshots})

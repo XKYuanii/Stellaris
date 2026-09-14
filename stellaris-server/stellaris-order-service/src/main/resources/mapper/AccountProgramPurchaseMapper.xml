@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.stellaris.mapper.AccountProgramPurchaseMapper">
+    <insert id="initialize">
+        INSERT IGNORE INTO t_account_program_purchase
+        (program_id, user_id, purchase_count, updated_at)
+        VALUES (#{programId}, #{userId}, 0, NOW())
+    </insert>
+
+    <update id="incrementWithinLimit">
+        UPDATE t_account_program_purchase
+        SET purchase_count = purchase_count + #{amount}, updated_at = NOW()
+        WHERE program_id = #{programId}
+          AND user_id = #{userId}
+          AND (#{accountLimit} &lt;= 0 OR purchase_count + #{amount} &lt;= #{accountLimit})
+    </update>
+
+    <update id="decrement">
+        UPDATE t_account_program_purchase
+        SET purchase_count = purchase_count - #{amount}, updated_at = NOW()
+        WHERE program_id = #{programId}
+          AND user_id = #{userId}
+          AND purchase_count &gt;= #{amount}
+    </update>
+
+    <select id="currentCount" resultType="java.lang.Integer">
+        SELECT COALESCE(purchase_count, 0)
+        FROM t_account_program_purchase
+        WHERE program_id = #{programId}
+          AND user_id = #{userId}
+    </select>
+</mapper>

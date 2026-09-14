@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.stellaris.mapper.TradeSeatInventoryMapper">
+    <insert id="initializeSnapshot">
+        INSERT INTO t_seat_inventory
+        (program_id, seat_id, ticket_category_id, sell_status, reservation_id, order_number,
+         version, price_in_cents, sale_version, create_time, edit_time, status)
+        VALUES
+        <foreach collection="seats" item="seat" separator=",">
+            (#{programId}, #{seat.seatId}, #{seat.ticketCategoryId}, #{seat.sellStatus}, NULL, NULL,
+             0, #{seat.priceInCents}, #{saleVersion}, NOW(), NOW(), 1)
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            ticket_category_id = IF(sell_status = 1, VALUES(ticket_category_id), ticket_category_id),
+            price_in_cents = IF(sell_status = 1, VALUES(price_in_cents), price_in_cents),
+            sale_version = IF(sell_status = 1, VALUES(sale_version), sale_version),
+            edit_time = NOW()
+    </insert>
+
+    <update id="lockSeats">
+        UPDATE t_seat_inventory
+        SET sell_status = 2,
+            reservation_id = #{reservationId},
+            order_number = #{orderNumber},
+            version = version + 1,
+            edit_time = NOW()
+        WHERE program_id = #{programId}
+        <!-- 与下面的行构造器逻辑重叠，但它让优化器确定走 PRIMARY KEY (program_id, seat_id)
+             范围扫描；扫描顺序即 seat_id 升序，与调用方排序一致，不引入新的死锁顺序。 -->
+          AND seat_id IN
+        <foreach collection="seats" item="seat" open="(" separator="," close=")">
+            #{seat.seatId}
+        </foreach>
+        <!-- 票档与价格逐座取值，必须用行构造器逐座比对，不能退化成两个独立 IN：
+             那样会允许「A 座的价格配 B 座」这种错误组合通过校验。 -->
+          AND (seat_id, ticket_category_id, price_in_cents) IN
+        <foreach collection="seats" item="seat" open="(" separator="," close=")">
+            (#{seat.seatId}, #{seat.ticketCategoryId}, #{seat.priceInCents})
+        </foreach>
+          AND sale_version = #{saleVersion}
+          AND sell_status = 1
+          AND reservation_id IS NULL
+          AND order_number IS NULL
+          AND status = 1
+    </update>
+
+    <update id="transitionOrderSeats">
+        UPDATE t_seat_inventory
+        SET sell_status = #{targetStatus},
+            reservation_id = CASE WHEN #{targetStatus} = 1 THEN NULL ELSE reservation_id END,
+            order_number = CASE WHEN #{targetStatus} = 1 THEN NULL ELSE order_number END,
+            version = version + 1,
+            edit_time = NOW()
+        WHERE program_id = #{programId}
+          AND order_number = #{orderNumber}
+          AND reservation_id = #{reservationId}
+          AND sell_status = #{sourceStatus}
+          AND status = 1
+    </update>
+
+    <select id="countAvailable" resultType="long">
+        SELECT COUNT(*)
+        FROM t_seat_inventory
+        WHERE program_id = #{programId}
+          AND ticket_category_id = #{ticketCategoryId}
+          AND sell_status = 1
+          AND status = 1
+    </select>
+
+    <select id="countProgram" resultType="long">
+        SELECT COUNT(*) FROM t_seat_inventory WHERE program_id = #{programId} AND status = 1
+    </select>
+
+    <select id="countDifferentSaleVersion" resultType="long">
+        SELECT COUNT(*)
+        FROM t_seat_inventory
+        WHERE program_id = #{programId}
+          AND sale_version != #{saleVersion}
+          AND status = 1
+    </select>
+
+    <select id="currentSnapshot" resultType="com.stellaris.dto.SeatInventorySnapshotDto">
+        SELECT i.seat_id,
+               i.ticket_category_id,
+               i.price_in_cents,
+               i.sell_status,
+               i.reservation_id,
+               i.order_number,
+               o.user_id,
+               otu.ticket_user_id,
+               req.request_fingerprint,
+               o.expire_time AS reservation_expire_time
+        FROM t_seat_inventory i
+        LEFT JOIN d_order o
+               ON o.order_number = i.order_number AND o.status = 1
+        LEFT JOIN d_order_ticket_user otu
+               ON otu.order_number = i.order_number AND otu.seat_id = i.seat_id AND otu.status = 1
+        LEFT JOIN t_order_request req
+               ON req.reservation_id = i.reservation_id
+        WHERE i.program_id = #{programId}
+          AND i.status = 1
+        ORDER BY i.seat_id
+    </select>
+</mapper>

@@ -124,7 +124,6 @@ public class RequestValidationFilter implements GlobalFilter, Ordered {
     } 
 
     private Mono<Void> readBody(ServerWebExchange exchange, GatewayFilterChain chain, Map<String,String> headMap){
-        log.info("current thread readBody : {}",Thread.currentThread().getName());
         RequestTemporaryWrapper requestTemporaryWrapper = new RequestTemporaryWrapper();
 
         // 不让 StringDecoder/BodyInserter 根据运行机器默认字符集往返转换 JSON。
@@ -262,7 +261,7 @@ public class RequestValidationFilter implements GlobalFilter, Ordered {
         return new ServerHttpRequestDecorator(exchange.getRequest()){
             @Override
             public HttpHeaders getHeaders() {
-                log.info("current thread getHeaders: {}",Thread.currentThread().getName());
+                // 该方法会被 Gateway 框架在单次请求内反复调用，热路径不允许打日志。
                 HttpHeaders newHeaders = new HttpHeaders();
                 newHeaders.putAll(exchange.getRequest().getHeaders());
                 newHeaders.remove(USER_ID);

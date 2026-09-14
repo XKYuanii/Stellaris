@@ -4,23 +4,15 @@ import cn.hutool.core.collection.CollectionUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.stellaris.core.RedisKeyManage;
-import com.stellaris.domain.DiscardOrder;
 import com.stellaris.dto.OrderPageManageDto;
-import com.stellaris.dto.OrderTicketUserCreateDto;
 import com.stellaris.entity.Order;
 import com.stellaris.entity.OrderProgram;
 import com.stellaris.entity.OrderTicketUser;
-import com.stellaris.enums.DiscardOrderReason;
 import com.stellaris.enums.OrderStatus;
 import com.stellaris.mapper.OrderMapper;
 import com.stellaris.mapper.OrderProgramMapper;
 import com.stellaris.mapper.OrderTicketUserMapper;
 import com.stellaris.page.PageUtil;
-import com.stellaris.redis.RedisCache;
-import com.stellaris.redis.RedisKeyBuild;
-import com.stellaris.vo.DiscardOrderManageVo;
-import com.stellaris.vo.DiscardOrderTicketUserManageVo;
 import com.stellaris.vo.OrderManageVo;
 import com.stellaris.vo.OrderTicketUserManageVo;
 import groovy.util.logging.Slf4j;
@@ -48,9 +40,6 @@ public class OrderManageService {
     
     @Autowired
     private OrderTicketUserMapper orderTicketUserMapper;
-    
-    @Autowired
-    private RedisCache redisCache;
     
     public IPage<OrderManageVo> orderPage(OrderPageManageDto orderPageManageDto) {
         IPage<OrderManageVo> orderListManageVoPage = new Page<>(orderPageManageDto.getPageNumber(), orderPageManageDto.getPageSize());
@@ -87,34 +76,5 @@ public class OrderManageService {
         BeanUtils.copyProperties(orderProgramPage, orderListManageVoPage);
         orderListManageVoPage.setRecords(orderManageVoList);
         return orderListManageVoPage;
-    }
-    
-    public IPage<DiscardOrderManageVo> discardOrderPage(OrderPageManageDto orderPageManageDto) {
-        Long total = redisCache.lenForList(RedisKeyBuild.createRedisKey(RedisKeyManage.DISCARD_ORDER, orderPageManageDto.getProgramId()));
-        IPage<DiscardOrderManageVo> discardOrderManageVoPage = new Page<>(orderPageManageDto.getPageNumber(), orderPageManageDto.getPageSize(),total);
-        long start = (long) (orderPageManageDto.getPageNumber() - 1) * orderPageManageDto.getPageSize();
-        long end = start + orderPageManageDto.getPageSize() - 1;
-        List<DiscardOrder> discardOrderList = redisCache.rangeForList(RedisKeyBuild.createRedisKey(RedisKeyManage.DISCARD_ORDER, orderPageManageDto.getProgramId()),start, end, DiscardOrder.class);
-        if (CollectionUtil.isEmpty(discardOrderList)) {
-            return discardOrderManageVoPage;
-        }
-        List<DiscardOrderManageVo> discardOrderManageVoList = new ArrayList<>();
-        for (DiscardOrder discardOrder : discardOrderList) {
-            DiscardOrderManageVo discardOrderManageVo = new DiscardOrderManageVo();
-            BeanUtils.copyProperties(discardOrder.getOrderCreateMq(), discardOrderManageVo);
-            discardOrderManageVo.setDiscardOrderReason(discardOrder.getDiscardOrderReason());
-            discardOrderManageVo.setDiscardOrderReasonName(DiscardOrderReason.getMsg(discardOrder.getDiscardOrderReason()));
-            List<OrderTicketUserCreateDto> orderTicketUserCreateDtoList = discardOrder.getOrderCreateMq().getOrderTicketUserCreateDtoList();
-            List<DiscardOrderTicketUserManageVo> discardOrderTicketUserManageVoList = new ArrayList<>();
-            for (OrderTicketUserCreateDto orderTicketUserCreateDto : orderTicketUserCreateDtoList) {
-                DiscardOrderTicketUserManageVo discardOrderTicketUserManageVo = new DiscardOrderTicketUserManageVo();
-                BeanUtils.copyProperties(orderTicketUserCreateDto, discardOrderTicketUserManageVo);
-                discardOrderTicketUserManageVoList.add(discardOrderTicketUserManageVo);
-            }
-            discardOrderManageVo.setDiscardOrderTicketUserManageVo(discardOrderTicketUserManageVoList);
-            discardOrderManageVoList.add(discardOrderManageVo);
-        }
-        discardOrderManageVoPage.setRecords(discardOrderManageVoList);
-        return discardOrderManageVoPage;
     }
 }

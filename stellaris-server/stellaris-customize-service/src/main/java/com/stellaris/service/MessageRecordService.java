@@ -123,6 +123,10 @@ public class MessageRecordService {
     public Boolean executeReconciliationTask() {
         log.info("执行消息记录的对账任务");
         for (MessageType messageType : MessageType.values()) {
+            if (!exceptionMessageHandlerContext.supports(messageType)) {
+                log.debug("跳过已下线且没有处理器的消息类型: {}", messageType);
+                continue;
+            }
             try {
                 List<MessageProducerRecord> noReconciliationMessageProducerRecordList =
                         exceptionMessageHandlerContext.getExceptionMessageHandler(messageType).noReconciliationMessageProducerRecordList();

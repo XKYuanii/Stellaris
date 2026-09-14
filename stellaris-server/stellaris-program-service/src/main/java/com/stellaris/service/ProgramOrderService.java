@@ -1,17 +1,17 @@
 package com.stellaris.service;
 
-import com.stellaris.domain.OrderCreateMq;
+import com.stellaris.domain.OrderCreateEvent;
 import com.stellaris.dto.OrderTicketUserCreateDto;
 import com.stellaris.dto.ProgramOrderCreateDto;
 import com.stellaris.enums.BaseCode;
 import com.stellaris.exception.StellarisFrameException;
-import com.stellaris.util.DateUtils;
 import com.stellaris.vo.ProgramVo;
 import com.stellaris.vo.SeatVo;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,7 +29,7 @@ public class ProgramOrderService {
      * Builds the complete v5 order event before the reservation Lua script atomically locks seats
      * and appends that event to Redis Stream.
      */
-    public OrderCreateMq buildReferenceOrderMessage(ProgramOrderCreateDto request, List<SeatVo> seats,
+    public OrderCreateEvent buildReferenceOrderMessage(ProgramOrderCreateDto request, List<SeatVo> seats,
                                                      Long orderNumber) {
         if (seats == null || request.getTicketUserIdList() == null
                 || seats.size() != request.getTicketUserIdList().size()) {
@@ -37,7 +37,7 @@ public class ProgramOrderService {
         }
 
         ProgramVo program = programService.simpleGetProgramAndShowMultipleCache(request.getProgramId());
-        OrderCreateMq message = new OrderCreateMq();
+        OrderCreateEvent message = new OrderCreateEvent();
         message.setOrderNumber(orderNumber);
         message.setProgramId(request.getProgramId());
         message.setProgramItemPicture(program.getItemPicture());
@@ -47,7 +47,8 @@ public class ProgramOrderService {
         message.setProgramShowTime(program.getShowTime());
         message.setProgramPermitChooseSeat(program.getPermitChooseSeat());
         message.setOrderPrice(seats.stream().map(SeatVo::getPrice).reduce(BigDecimal.ZERO, BigDecimal::add));
-        message.setCreateOrderTime(DateUtils.now());
+        Date createTime = new Date();
+        message.setCreateOrderTime(createTime);
 
         List<OrderTicketUserCreateDto> ticketUsers = new ArrayList<>(seats.size());
         for (int index = 0; index < seats.size(); index++) {
@@ -62,7 +63,7 @@ public class ProgramOrderService {
             ticketUser.setSeatInfo(seat.getRowCode() + "排" + seat.getColCode() + "列");
             ticketUser.setTicketCategoryId(seat.getTicketCategoryId());
             ticketUser.setOrderPrice(seat.getPrice());
-            ticketUser.setCreateOrderTime(DateUtils.now());
+            ticketUser.setCreateOrderTime(createTime);
             ticketUsers.add(ticketUser);
         }
         message.setOrderTicketUserCreateDtoList(ticketUsers);

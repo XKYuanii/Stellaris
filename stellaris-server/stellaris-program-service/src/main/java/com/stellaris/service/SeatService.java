@@ -16,37 +16,28 @@ import com.stellaris.entity.ProgramShowTime;
 import com.stellaris.entity.Seat;
 import com.stellaris.enums.BaseCode;
 import com.stellaris.enums.BusinessStatus;
-import com.stellaris.enums.SeatType;
-import com.stellaris.enums.SellStatus;
 import com.stellaris.exception.StellarisFrameException;
 import com.stellaris.mapper.SeatMapper;
 import com.stellaris.redis.RedisCache;
 import com.stellaris.redis.RedisKeyBuild;
-import com.stellaris.service.lua.ProgramSeatCacheData;
-import com.stellaris.servicelock.LockType;
-import com.stellaris.servicelock.annotion.ServiceLock;
+import com.stellaris.service.reference.ReferenceSeatInventoryService;
 import com.stellaris.util.DateUtils;
-import com.stellaris.util.ServiceLockTool;
 import com.stellaris.vo.ProgramVo;
 import com.stellaris.vo.SeatRelateInfoVo;
 import com.stellaris.vo.SeatVo;
 import com.stellaris.vo.TicketCategoryVo;
-import org.redisson.api.RLock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static com.stellaris.core.DistributedLockConstants.GET_SEAT_LOCK;
-import static com.stellaris.core.DistributedLockConstants.SEAT_LOCK;
 
 /**
  * @program: Stellaris（星演）高并发票务平台。
@@ -72,13 +63,10 @@ public class SeatService extends ServiceImpl<SeatMapper, Seat> {
     private ProgramShowTimeService programShowTimeService;
     
     @Autowired
-    private ServiceLockTool serviceLockTool;
-    
-    @Autowired
     private TicketCategoryService ticketCategoryService;
     
     @Autowired
-    private ProgramSeatCacheData programSeatCacheData;
+    private ReferenceSeatInventoryService referenceSeatInventoryService;
     
     /**
      * 添加座位
@@ -99,70 +87,8 @@ public class SeatService extends ServiceImpl<SeatMapper, Seat> {
         return seat.getId();
     }
     
-    @ServiceLock(lockType= LockType.Read,name = SEAT_LOCK,keys = {"#programId","#ticketCategoryId"})
     public List<SeatVo> selectSeatResolution(Long programId,Long ticketCategoryId,Long expireTime,TimeUnit timeUnit) {
-        List<SeatVo> seatVoList = getSeatVoListByCacheResolution(programId,ticketCategoryId);
-        if (CollectionUtil.isNotEmpty(seatVoList)) {
-            return seatVoList;
-        }
-        RLock lock = serviceLockTool.getLock(LockType.Reentrant, GET_SEAT_LOCK, new String[]{String.valueOf(programId),
-                String.valueOf(ticketCategoryId)});
-        lock.lock();
-        try {
-            seatVoList = getSeatVoListByCacheResolution(programId,ticketCategoryId);
-            if (CollectionUtil.isNotEmpty(seatVoList)) {
-                return seatVoList;
-            }
-            LambdaQueryWrapper<Seat> seatLambdaQueryWrapper =
-                    Wrappers.lambdaQuery(Seat.class).eq(Seat::getProgramId, programId)
-                            .eq(Seat::getTicketCategoryId,ticketCategoryId);
-            List<Seat> seats = seatMapper.selectList(seatLambdaQueryWrapper);
-            for (Seat seat : seats) {
-                SeatVo seatVo = new SeatVo();
-                BeanUtil.copyProperties(seat, seatVo);
-                seatVo.setSeatTypeName(SeatType.getMsg(seat.getSeatType()));
-                seatVoList.add(seatVo);
-            }
-            Map<Integer, List<SeatVo>> seatMap = seatVoList.stream().collect(Collectors.groupingBy(SeatVo::getSellStatus));
-            List<SeatVo> noSoldSeatVoList = seatMap.get(SellStatus.NO_SOLD.getCode());
-            List<SeatVo> lockSeatVoList = seatMap.get(SellStatus.LOCK.getCode());
-            List<SeatVo> soldSeatVoList = seatMap.get(SellStatus.SOLD.getCode());
-            if (CollectionUtil.isNotEmpty(noSoldSeatVoList)) {
-                redisCache.putHash(RedisKeyBuild.createRedisKey(RedisKeyManage.PROGRAM_SEAT_NO_SOLD_RESOLUTION_HASH, 
-                                programId,ticketCategoryId),noSoldSeatVoList.stream()
-                                .collect(Collectors.toMap(s -> String.valueOf(s.getId()),s -> s,(v1,v2) -> v2))
-                        ,expireTime, timeUnit);
-            }
-            if (CollectionUtil.isNotEmpty(lockSeatVoList)) {
-                redisCache.putHash(RedisKeyBuild.createRedisKey(RedisKeyManage.PROGRAM_SEAT_LOCK_RESOLUTION_HASH, 
-                                programId,ticketCategoryId),lockSeatVoList.stream()
-                                .collect(Collectors.toMap(s -> String.valueOf(s.getId()),s -> s,(v1,v2) -> v2))
-                        ,expireTime, timeUnit);
-            }
-            if (CollectionUtil.isNotEmpty(soldSeatVoList)) {
-                redisCache.putHash(RedisKeyBuild.createRedisKey(RedisKeyManage.PROGRAM_SEAT_SOLD_RESOLUTION_HASH, 
-                                programId,ticketCategoryId)
-                        ,soldSeatVoList.stream()
-                                .collect(Collectors.toMap(s -> String.valueOf(s.getId()),s -> s,(v1,v2) -> v2))
-                        ,expireTime, timeUnit);
-            }
-            seatVoList = seatVoList.stream().sorted(Comparator.comparingInt(SeatVo::getRowCode)
-                    .thenComparingInt(SeatVo::getColCode)).collect(Collectors.toList());
-            return seatVoList;
-        }finally {
-            lock.unlock();
-        }
-    }
-    
-    public List<SeatVo> getSeatVoListByCacheResolution(Long programId,Long ticketCategoryId){
-        List<String> keys = new ArrayList<>(4);
-        keys.add(RedisKeyBuild.createRedisKey(RedisKeyManage.PROGRAM_SEAT_NO_SOLD_RESOLUTION_HASH,
-                programId, ticketCategoryId).getRelKey());
-        keys.add(RedisKeyBuild.createRedisKey(RedisKeyManage.PROGRAM_SEAT_LOCK_RESOLUTION_HASH,
-                programId, ticketCategoryId).getRelKey());
-        keys.add(RedisKeyBuild.createRedisKey(RedisKeyManage.PROGRAM_SEAT_SOLD_RESOLUTION_HASH,
-                programId, ticketCategoryId).getRelKey());
-        return programSeatCacheData.getData(keys, new String[]{});
+        return referenceSeatInventoryService.listCurrentByCategory(programId, ticketCategoryId);
     }
     
     public SeatRelateInfoVo relateInfo(SeatListDto seatListDto) {
@@ -224,7 +150,6 @@ public class SeatService extends ServiceImpl<SeatMapper, Seat> {
                     seat.setColCode(j);
                     seat.setSeatType(1);
                     seat.setPrice(price);
-                    seat.setSellStatus(SellStatus.NO_SOLD.getCode());
                     seatMapper.insert(seat);
                 }
             }

@@ -107,17 +107,6 @@ rules:
             shardingColumn: program_id
             # 使用id分表算法
             shardingAlgorithmName: tableTicketCategoryModModel
-      # 订单库存操作幂等表，与座位和票档使用相同节目分片
-      d_order_inventory_operation:
-        actualDataNodes: ds_${0..1}.d_order_inventory_operation_${0..1}
-        databaseStrategy:
-          standard:
-            shardingColumn: program_id
-            shardingAlgorithmName: databaseOrderInventoryOperationModModel
-        tableStrategy:
-          standard:
-            shardingColumn: program_id
-            shardingAlgorithmName: tableOrderInventoryOperationModModel
     # 广播表
     broadcastTables:
       - d_program_category
@@ -173,14 +162,6 @@ rules:
         type: INLINE
         props:
           algorithm-expression: d_ticket_category_${(program_id.intdiv(2)) % 2}
-      databaseOrderInventoryOperationModModel:
-        type: INLINE
-        props:
-          algorithm-expression: ds_${program_id % 2}
-      tableOrderInventoryOperationModModel:
-        type: INLINE
-        props:
-          algorithm-expression: d_order_inventory_operation_${(program_id.intdiv(2)) % 2}
 props:
   # 打印真实sql
   sql-show: false

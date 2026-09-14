@@ -52,7 +52,7 @@
         </dependency>
         <dependency>
             <groupId>com.stellaris</groupId>
-            <artifactId>stellaris-program-client</artifactId>
+            <artifactId>stellaris-user-client</artifactId>
             <version>${revision}</version>
         </dependency>
         <dependency>
@@ -72,22 +72,7 @@
         </dependency>
         <dependency>
             <groupId>com.stellaris</groupId>
-            <artifactId>stellaris-service-lock-framework</artifactId>
-            <version>${revision}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.stellaris</groupId>
-            <artifactId>stellaris-repeat-execute-limit-framework</artifactId>
-            <version>${revision}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.stellaris</groupId>
             <artifactId>stellaris-thread-pool-framework</artifactId>
-            <version>${revision}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.stellaris</groupId>
-            <artifactId>stellaris-service-delay-queue-framework</artifactId>
             <version>${revision}</version>
         </dependency>
         <dependency>
@@ -122,10 +107,6 @@
             <artifactId>mysql-connector-j</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.springframework.kafka</groupId>
-            <artifactId>spring-kafka</artifactId>
-        </dependency>
-        <dependency>
             <groupId>com.github.ulisesbocchio</groupId>
             <artifactId>jasypt-spring-boot-starter</artifactId>
             <version>${jasypt.version}</version>
@@ -140,13 +121,18 @@
             <artifactId>spring-cloud-starter-loadbalancer</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.stellaris</groupId>
-            <artifactId>stellaris-customize-client</artifactId>
-            <version>${revision}</version>
-        </dependency>
-        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>mysql</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

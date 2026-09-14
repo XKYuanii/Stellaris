@@ -70,16 +70,6 @@ rules:
           standard:
             shardingColumn: program_id
             shardingAlgorithmName: tableTicketCategoryModModel
-      d_order_inventory_operation:
-        actualDataNodes: ds_${0..1}.d_order_inventory_operation_${0..1}
-        databaseStrategy:
-          standard:
-            shardingColumn: program_id
-            shardingAlgorithmName: databaseOrderInventoryOperationModModel
-        tableStrategy:
-          standard:
-            shardingColumn: program_id
-            shardingAlgorithmName: tableOrderInventoryOperationModModel
     broadcastTables:
       - d_program_category
     shardingAlgorithms:
@@ -123,13 +113,5 @@ rules:
         type: INLINE
         props:
           algorithm-expression: d_ticket_category_${(program_id.intdiv(2)) % 2}
-      databaseOrderInventoryOperationModModel:
-        type: INLINE
-        props:
-          algorithm-expression: ds_${program_id % 2}
-      tableOrderInventoryOperationModModel:
-        type: INLINE
-        props:
-          algorithm-expression: d_order_inventory_operation_${(program_id.intdiv(2)) % 2}
 props:
   sql-show: false

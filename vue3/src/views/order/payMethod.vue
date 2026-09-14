@@ -5,12 +5,13 @@
       <div class="content"><img :src="pay" alt=""><span>{{ channel === 'mock' ? '模拟支付' : '支付宝付款' }}</span></div>
     </div>
     <div class="pay-section">
+      <p v-if="orderLoading" class="order-loading">订单正在生成，请稍候…</p>
       <el-radio-group v-model="channel" class="channel-select" :disabled="channelLocked">
         <el-radio-button label="mock">模拟支付</el-radio-button>
         <el-radio-button label="alipay">支付宝</el-radio-button>
       </el-radio-group>
       <div v-if="channel === 'mock'" class="mock-actions">
-        <p>模拟渠道会走真实账单、订单、Intent 和座位状态链路，不会调用第三方平台。</p>
+        <p>模拟渠道会走真实账单、订单、交易库存和座位状态链路，不会调用第三方平台。</p>
         <el-button type="success" :loading="paying" :disabled="!orderReady" @click="continuePay('SUCCESS')">模拟支付成功</el-button>
         <el-button type="danger" :loading="paying" :disabled="!orderReady" @click="continuePay('FAILURE')">模拟支付失败</el-button>
       </div>
@@ -23,7 +24,7 @@
 import pay from "@/assets/section/pay.png"
 import {computed, ref,onMounted} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
-import {getOrderDetailApi,orderPayApi} from "@/api/order.js";
+import {getOrderDetailApi,getOrderMaterializationApi,orderPayApi} from "@/api/order.js";
 import {ElMessage} from 'element-plus'
 //订单编号
 const orderNumber = ref('')
@@ -33,8 +34,11 @@ const router = useRouter();
 const route = useRoute();
 const channel = ref('mock')
 const paying = ref(false)
+const orderLoading = ref(false)
 const channelLocked = ref(false)
 const orderReady = computed(() => orderDetailData.value && orderNumber.value)
+const ORDER_DETAIL_RETRY_DELAY_MS = 300
+const ORDER_DETAIL_MAX_ATTEMPTS = 34
 
 async function continuePay(simulationOutcome) {
   if (!orderReady.value || paying.value) {
@@ -101,21 +105,50 @@ async function getOrderDetail() {
   const orderDetailParams = {'orderNumber': orderNumber.value}
   //传值-订单号
   localStorage.setItem('orderNumber',orderNumber.value)
+  const awaitMaterialization = history.state?.awaitMaterialization === true
+  const maxAttempts = awaitMaterialization ? ORDER_DETAIL_MAX_ATTEMPTS : 1
+  let lastError = new Error('订单详情加载失败')
+  orderLoading.value = true
   try {
-    const response = await getOrderDetailApi(orderDetailParams)
-    if (String(response.code) !== '0' || !response.data || String(response.data.orderNumber) !== orderNumber.value) {
-      throw new Error(response.message || '订单详情响应无效')
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        const response = await getOrderDetailApi(orderDetailParams)
+        if (String(response.code) === '0' && response.data
+            && String(response.data.orderNumber) === orderNumber.value) {
+          orderDetailData.value = response.data
+          return
+        }
+        lastError = new Error(response.message || '订单详情响应无效')
+        // 40015 表示订单尚未可见；其他业务错误无需重试。
+        if (String(response.code) !== '40015') break
+        const materialization = await getOrderMaterializationApi(orderDetailParams)
+        if (String(materialization.code) === '0' && materialization.data?.status === 'REJECTED') {
+          lastError = new Error(`下单失败：${materialization.data.rejectCode || '库存或限购校验未通过'}`)
+          break
+        }
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error))
+        if (!awaitMaterialization) break
+      }
+      if (attempt + 1 < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, ORDER_DETAIL_RETRY_DELAY_MS))
+      }
     }
-    orderDetailData.value = response.data
-  } catch (error) {
-    ElMessage.error(error?.message || '订单详情加载失败')
+  } finally {
+    orderLoading.value = false
   }
+  ElMessage.error(lastError.message || '订单详情加载失败')
 }
 
 </script>
 
 <style scoped lang="scss">
 .app-container {
+  .order-loading {
+    margin: 0 0 16px;
+    color: #909399;
+    text-align: center;
+  }
   .pay-header {
     display: flex;
     -webkit-box-pack: justify;

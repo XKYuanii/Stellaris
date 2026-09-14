@@ -233,11 +233,13 @@ public class PayService {
                 .eq(PayBill::getOutOrderNo, outTradeNo));
         if (Objects.isNull(payBill)) {
             log.error("账单为空 tradeCheckDto : {}",JSON.toJSONString(tradeCheckDto));
+            tradeCheckVo.setSuccess(false);
             return tradeCheckVo;
         }
         if (payBill.getPayAmount().compareTo(totalAmount) != 0) {
             log.error("支付渠道 和库中账单支付金额不一致 支付渠道支付金额 : {}, 库中账单支付金额 : {}, tradeCheckDto : {}",
                     totalAmount,payBill.getPayAmount(),JSON.toJSONString(tradeCheckDto));
+            tradeCheckVo.setSuccess(false);
             return tradeCheckVo;
         }
         if (!Objects.equals(payBill.getPayBillStatus(), payBillStatus)) {

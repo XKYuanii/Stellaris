@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.stellaris.common.ApiResponse;
 import com.stellaris.dto.OrderPageManageDto;
 import com.stellaris.service.OrderManageService;
-import com.stellaris.vo.DiscardOrderManageVo;
 import com.stellaris.vo.OrderManageVo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -36,9 +35,4 @@ public class OrderManageController {
         return ApiResponse.ok(orderManageService.orderPage(orderPageManageDto));
     }
     
-    @Operation(summary  = "查看废弃订单分页列表")
-    @PostMapping(value = "/discard/order/page")
-    public ApiResponse<IPage<DiscardOrderManageVo>> discardOrderPage(@Valid @RequestBody OrderPageManageDto orderPageManageDto) {
-        return ApiResponse.ok(orderManageService.discardOrderPage(orderPageManageDto));
-    }
 }

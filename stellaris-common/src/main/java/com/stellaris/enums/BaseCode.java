@@ -178,10 +178,6 @@ public enum BaseCode {
     
     SEAT_OPERATE_IS_NOT_NOT_SOLD_OR_SOLD(40034,"座位操作状态只能是售卖或者为售卖"),
     
-    DELAY_QUEUE_CLIENT_NOT_EXIST(50001,"延迟队列客户端不存在"),
-    
-    DELAY_QUEUE_MESSAGE_NOT_EXIST(50002,"延迟队列消息不存在"),
-    
     SEAT_IS_EXIST(50003,"该节目下座位以存在"),
     
     START_DATE_TIME_NOT_EXIST(50004,"开始时间为空"),
@@ -207,6 +203,10 @@ public enum BaseCode {
     PROGRAM_NOT_ON_SALE(50014,"节目尚未开售或已下架"),
 
     PROGRAM_SALE_ENDED(50015,"节目已经结束，不能继续下单"),
+
+    ORDER_ACCEPTANCE_BUSY(50016,"订单积压达到保护阈值，请稍后重试"),
+
+    INVENTORY_WARMING_UP(50017,"座位库存正在后台恢复，请稍后重试"),
     
     USER_LOG_IN_STATUS_ERROR(60001,"用户不是登录状态"),
     

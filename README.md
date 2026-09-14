@@ -4,273 +4,188 @@
 
 <h1 align="center">Stellaris</h1>
 
-<p align="center">
-  面向热门演出票务场景的高并发交易与可靠性工程演示系统
-</p>
+<p align="center">面向热门演出票务场景的高并发交易与可靠性工程演示系统</p>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Java-17-ED8B00?logo=openjdk&logoColor=white" alt="Java 17">
-  <img src="https://img.shields.io/badge/Spring%20Boot-3.3.0-6DB33F?logo=springboot&logoColor=white" alt="Spring Boot 3.3.0">
-  <img src="https://img.shields.io/badge/Vue-3.2.45-42B883?logo=vuedotjs&logoColor=white" alt="Vue 3.2.45">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="Apache License 2.0"></a>
-</p>
+Stellaris 是一个可运行、可解释、可验证的票务交易工程原型。当前唯一购票入口是 `v5/reference`。它用 Redis Lua 完成高并发准入，用 Redis Stream 保存待落单事件，再由订单服务在一个 MySQL 交易库事务内完成请求幂等、最终限购、座位锁定和建单。
 
-Stellaris 是一个可运行、可解释、可验证的票务交易工程原型。项目围绕热门演出开售时的流量治理、原子锁座、可靠事件、幂等落单、支付状态竞争、超时取消和对账恢复，展示一条完整的微服务交易链路。
-
-本仓库基于 JavaUp 的“大麦”票务教学项目骨架进行工程化重构。本人主要完成 v5 交易链路、Redis Stream/Kafka 可靠投递、幂等与状态 CAS、超时取消、对账恢复、网关流量治理、安全边界、测试和工程文档；基础业务模型及部分通用组件来源于上游。上游项目介绍见 [JavaUp](https://www.javaup.chat)。
+本仓库基于 JavaUp 的“大麦”票务教学项目骨架进行工程化重构。基础业务模型及部分通用组件来源于上游；当前交易架构、可靠消费、状态 CAS、流量治理、故障恢复、测试与文档为本仓库重构内容。
 
 > [!IMPORTANT]
-> `v5/reference` 是当前仓库唯一保留的下单实现。`v1`～`v4.1` 只存在于历史测试材料和架构演进记录中，不再作为可运行接口。
+> `v1`～`v4.1` 只保留为历史演进材料，不再暴露运行入口。当前代码不使用 Kafka 中继创建订单，也不使用 Redis 延迟队列取消订单。
 
 > [!NOTE]
-> 本项目用于架构学习、面试演示和可靠性实验，不是可直接投入生产的部署模板。它不宣称端到端 Exactly Once、跨存储强事务、基础设施高可用或未经实测的 QPS。
+> 本项目用于架构学习、本地演示和可靠性实验。它不承诺端到端 Exactly Once、跨 Redis/MySQL 强事务、基础设施高可用或未经实测的 QPS。
 
-## 项目要解决什么
-
-普通的票务 CRUD 很难解释高并发开售时真正棘手的问题：同一座位被重复售卖、重复请求生成多笔订单、消息重复或丢失、支付和取消同时成功、Redis 与 MySQL 状态漂移，以及异常恢复后库存无法收敛。
-
-Stellaris 将这些问题拆成可验证的不变量：
-
-- 同一座位在同一时刻最多只有一个有效 `reservationId`。
-- 同一业务请求重试时返回同一结果，不产生新订单或重新选座。
-- 订单只允许从 `NO_PAY` 竞争进入一个终态，支付与取消不能同时获胜。
-- 消息允许至少一次投递，消费者必须依靠业务键、唯一约束和状态 CAS 幂等。
-- Redis 库存、订单事实、座位归属和迁移事件可以通过补偿与对账最终收敛。
-- 限流、并发舱壁、死信、重试和清理都必须可观测，而不是静默失败。
-
-更完整的不变量定义见 [BUSINESS_INVARIANTS.md](docs/BUSINESS_INVARIANTS.md)。
-
-## 系统架构
+## 当前架构
 
 ```mermaid
 flowchart LR
-    Web[Vue 3 Web] --> Gateway[Gateway :6085]
+    Web[Vue 3] --> Gateway[Gateway]
+    Gateway --> Program[Program Service]
+    Gateway --> Order[Order Service]
+    Gateway --> Pay[Pay Service]
+    Gateway --> User[User Service]
 
-    subgraph Services[Spring Cloud services]
-        User[User :6082]
-        Base[Base Data :6083]
-        Customize[Customize :6084]
-        Program[Program :6086]
-        Pay[Pay :6087]
-        Migrate[Migrate :6088]
-        Order[Order :8081]
-    end
-
-    Gateway --> User
-    Gateway --> Base
-    Gateway --> Customize
-    Gateway --> Program
-    Gateway --> Pay
-    Gateway --> Order
-
-    Program -- atomic Lua reservation --> Redis[(Redis)]
-    Program -- Stream bridge --> Kafka[(Kafka)]
-    Kafka -- create event --> Order
-    Order -- idempotent persistence --> MySQL[(Sharded MySQL)]
-    Order -- transition event --> Kafka
-    Kafka --> Migrate
-    Migrate --> MySQL
-    Program --> ES[(Elasticsearch)]
-
-    Services -. registration / discovery .-> Nacos[Nacos]
+    Program -->|Lua: reserve + XADD| Redis[(Redis)]
+    Redis -->|Consumer Group| Order
+    Order -->|single local transaction| Trade[(MySQL trade DB)]
+    Order -->|payment/cancel result| Pay
+    Order -->|Redis sync command| Program
+    Program -. optional search .-> ES[(Elasticsearch)]
+    Gateway -. structured access logs .-> Logs[Log collection]
+    Gateway & Program & Order & Pay & User -. discovery .-> Nacos[Nacos]
 ```
 
-### v5 参考下单链路
+### 创建订单
 
 ```text
-Gateway USER / PROGRAM / GLOBAL Redis 令牌桶
-  -> 本机并发舱壁
-  -> 节目状态、开售时间、单笔数量与缓存校验
-  -> 有界 O(k) Redis Lua：账号限购 + 精确锁座 + XADD Stream
-  -> Redis Stream Consumer Group / Pending 重领 / 死信
-  -> Kafka acks=all + 幂等生产 + 手动提交 + 重试 / DLT
-  -> MySQL reservationId CAS + 订单和购票人明细幂等落库
-  -> 支付或取消通过 MySQL CAS 竞争唯一终态
-  -> 座位迁移事件确认 SOLD 或释放座位
-  -> 延迟取消 lease / ACK 队列 + 数据库过期扫描兜底
-  -> Stream / Order / Pay / Redis 多源对账
+Gateway：身份校验 + USER/PROGRAM/GLOBAL 令牌桶 + 本机并发舱壁
+  -> Program：校验场次、票档、人数和服务端座位快照
+  -> Redis Lua：请求幂等 + 快速限购 + 精确预占 + XADD
+  -> 返回稳定 orderNumber，页面显示“订单处理中”
+  -> Order：XREADGROUP 消费，Pending 超时后 XCLAIM 重领
+  -> MySQL 单事务：
+       t_order_request 唯一键
+       + t_account_program_purchase 最终限购
+       + t_seat_inventory 全部座位 CAS
+       + 订单、明细、节目关联
+  -> 提交成功或形成明确拒绝/异常审计后 ACK
+  -> 前端轮询持久化结果
 ```
 
-当前可靠性语义是：**至少一次投递 + 业务幂等 + 状态 CAS + 最终一致性**。
+Redis 预占成功表示系统已受理；MySQL 事务提交后才表示订单创建成功。Stream 允许重复投递，数据库唯一约束和状态条件更新负责吸收重复。
 
-v5 不在热路径写 MySQL Intent/Outbox；锁座变化与 Stream 事件由同一段 Redis Lua 原子生成。这样缩短了开售热路径，但事件创建的耐久性边界依赖 Redis 主从和 AOF，因此不能将它描述为跨 Redis、Kafka、MySQL 的强事务或绝对零丢失方案。设计取舍见 [ADR-002](docs/ADR-002-redis-stream-order-event.md)。
+### 支付、取消和过期
 
-## 核心能力
+- 支付与取消通过 `NO_PAY -> PAY/CANCEL` 条件更新竞争，只有一个事务能成为赢家。
+- 赢家在同一交易库事务中更新订单、座位和账号额度，并写入 Redis 待同步记录。
+- 未支付订单由 MySQL 到期索引分批扫描关单，不再维护 Redis lease/ACK 延迟队列。
+- Redis 同步失败由 `d_reservation_transition_event` 重试；MySQL 交易事实不回滚。
 
-- **三层流量治理**：Gateway 按可信 USER、PROGRAM、GLOBAL 维度执行 Redis Lua 令牌桶，之后再进入本机并发舱壁。
-- **用户域归属校验**：订单、个人资料和购票人接口均以 Gateway 身份为准，正文身份不一致会被拒绝；敏感聚合查询仅允许服务内调用。
-- **原子库存预订**：v5 Lua 在单次执行中完成限购判断、精确锁座、幂等回执和 Stream 事件写入。
-- **Redis Cluster 约束**：节目按 16 个 `{sale:shard}` Hash Tag 分散；同一节目的库存键和 Stream 保持同槽。
-- **请求级幂等**：`reservationId` 对应带 TTL 的结果回执，自动选座请求重试不会改选座位或重新生成订单号。
-- **可靠事件桥接**：Stream Consumer Group 支持 Pending 重领和死信；Kafka 侧使用可靠生产、手动提交、重试与 DLT。
-- **订单唯一终态**：支付与取消通过 `NO_PAY -> PAY/CANCEL` 条件更新竞争，只有 CAS 赢家能够产生迁移事件。
-- **可恢复超时取消**：lease/ACK 延迟队列负责主流程，数据库过期扫描负责丢失任务兜底。
-- **退款状态机**：当前明确支持全额退款，使用稳定退款号、Intent、最大重试次数、退避和 `DEAD` 状态。
-- **多源对账**：检查 Stream、死信、订单事实、座位 owner/reservation，并提供安全的重放入口。
-- **分库分表与路由基因**：ShardingSphere 支持多值 `IN` 跨库跨表路由；订单号携带 6 位路由基因。
-- **安全发号**：Snowflake 节点通过 Redis 租约分配，租约丢失后本地拒绝继续发号。
-- **可观测性**：关键路径提供 Actuator、Prometheus 指标、日志、死信审计和对账接口。
+后台只保留三类恢复职责：Stream Pending 重领、数据库到期关单、Redis 状态同步。
 
-## 技术栈
+## 数据归属
 
-| 层次 | 主要技术 |
+| 数据 | 权威位置 | 说明 |
+| --- | --- | --- |
+| 节目、场次、票档介绍、座位布局 | Program 库 | 开售后按发布版本冻结销售快照 |
+| 座位销售状态 | `stellaris_trade.t_seat_inventory` | 座位行就是库存，不维护 `t_ticket_stock` |
+| 账号场次额度 | `t_account_program_purchase` | Redis 计数只用于快速拒绝 |
+| 请求结果 | `t_order_request` | `reservation_id`、`(user_id, request_id)`、`order_number` 唯一 |
+| 订单与购票人明细 | `stellaris_trade` | 与座位和额度使用同一事务连接 |
+| Redis 终态同步 | `d_reservation_transition_event` | 只同步缓存，不修改第二个业务库 |
+| 异常 Stream 消息 | `d_order_stream_failure` | 留存原消息与错误，支持受控重放 |
+
+余票展示读取 Redis available ZSET 的 `ZCARD`；管理端低频核对按交易库 `AVAILABLE` 座位聚合。`d_ticket_category.remain_number` 和节目库座位交易字段已退出运行语义。
+
+## 关键取舍
+
+- 保留 Stream，因为锁座与 `XADD` 必须在同一 Lua 中原子完成，消除 Java 进程在两步之间退出的窗口。
+- 删除创建订单 Kafka 中继，因为这条流的堆积由成功预占库存约束，订单服务可直接消费 Stream。
+- 使用单交易库，让请求结果、限购、座位和订单一次提交；订单服务不再使用 ShardingSphere。
+- `stellaris-migrate-service` 退出默认 Maven reactor、Gateway 路由和启动清单，源码仅作为历史演进材料。
+- 网关限流事件写结构化日志，不为埋点维持 Kafka 默认依赖。
+- Elasticsearch 只服务搜索，不参与交易正确性。
+
+详细设计与边界见 [交易架构说明](docs/SINGLE_TRADE_STREAM_ARCHITECTURE.md) 和 [ADR-002](docs/ADR-002-redis-stream-order-event.md)。
+
+## 主要技术
+
+| 层次 | 技术 |
 | --- | --- |
-| 后端语言与框架 | Java 17、Spring Boot 3.3.0、Spring Cloud 2023.0.2 |
-| 服务治理 | Spring Cloud Gateway、Nacos 2.3.2、OpenFeign、Sentinel |
-| 数据访问 | MyBatis-Plus 3.5.7、ShardingSphere 5.3.2、MySQL 8.0 |
-| 缓存与协调 | Redis 7、Redisson 3.32.0、Lua、Redis Stream |
-| 消息系统 | Kafka 3.9.1 |
-| 检索 | Elasticsearch 8.16.1 |
-| 前端 | Vue 3.2.45、Vite 3.2.3、Pinia、Element Plus、Axios |
-| 测试与验证 | JUnit、Mockito、Maven Surefire、JMeter、PowerShell |
-| 可观测性 | Spring Boot Actuator、Micrometer、Prometheus 规则、结构化日志 |
+| 后端 | Java 17、Spring Boot 3.3、Spring Cloud 2023、OpenFeign |
+| 流量与协调 | Spring Cloud Gateway、Redis 7、Lua、Redisson |
+| 可靠队列 | Redis Stream Consumer Group、PEL、XCLAIM |
+| 持久化 | MySQL 8、MyBatis-Plus、HikariCP |
+| 服务发现 | Nacos 2.3 |
+| 搜索 | Elasticsearch 8，选配 |
+| 前端 | Vue 3、Vite、Pinia、Element Plus |
+| 验证 | JUnit 5、Mockito、Maven Surefire、JMeter |
 
-仓库包含 47 个 Maven `pom.xml`、700 余个主 Java 源文件，以及单元、正确性验证和历史容量测试资产。
+Program、Pay、User 的既有分片本轮没有改动；订单交易主链已经使用普通 Hikari 单库。Snowflake 与 Redis worker 租约保留，订单号不再嵌入分片路由基因。
 
 ## 仓库结构
 
 ```text
 Stellaris/
-├─ stellaris-server/                  # 业务微服务
-├─ stellaris-server-client/           # Feign 契约、DTO 与 VO
-├─ stellaris-spring-cloud-framework/  # 服务通用、初始化、灰度等框架
-├─ stellaris-redis-tool-framework/    # Redis 抽象与工具
-├─ stellaris-redisson-framework/      # 锁、限流与 Redisson 组件
-├─ stellaris-id-generator-framework/  # 订单号与节点租约
-├─ stellaris-elasticsearch-framework/ # Elasticsearch 封装
-├─ stellaris-thread-pool-framework/   # 线程池组件
-├─ stellaris-captcha-manage-framework/ # 验证码组件
-├─ stellaris-common/                  # 通用模型、异常与工具
-├─ stellaris-benchmark/               # JMH/基准计划模块
-├─ vue3/                              # Vue 3 Web 前端
-├─ sql/                               # 初始化、分片与可靠性迁移 SQL
-├─ ops/                               # Docker、负载脚本与监控规则
-├─ tests/                             # JMeter 与容量验证资产
-├─ docs/                              # 架构、ADR、边界与面试文档
-└─ interview-deliverables/            # 性能/JVM 调优证据与说明
+├─ stellaris-server/                  # Gateway 与业务服务
+├─ stellaris-server-client/           # Feign 契约、DTO、VO
+├─ stellaris-spring-cloud-framework/  # 通用服务组件
+├─ stellaris-redis-tool-framework/    # Redis 与 Stream 组件
+├─ stellaris-redisson-framework/      # 锁与并发控制
+├─ stellaris-id-generator-framework/  # Snowflake 与 worker 租约
+├─ vue3/                              # Web 前端
+├─ sql/reliability/                    # 交易库目标 Schema
+├─ ops/                               # 本地基础设施和观测配置
+├─ tests/                             # 正确性与容量测试资产
+└─ docs/                              # 架构说明、ADR、故障矩阵和已知边界
 ```
 
 ## 服务与端口
 
-### 业务服务
-
-| 服务 | 端口 | 主要职责 |
+| 服务 | 端口 | 职责 |
 | --- | ---: | --- |
-| `stellaris-user-service` | 6082 | 用户、登录、验证码、购票人 |
-| `stellaris-base-data-service` | 6083 | 区域、渠道与基础配置 |
-| `stellaris-customize-service` | 6084 | 动态规则、API 与消息记录 |
-| `stellaris-gateway-service` | 6085 | 路由、鉴权、限流、并发隔离、聚合文档 |
-| `stellaris-program-service` | 6086 | 节目、票档、座位、锁座、Stream 与对账 |
-| `stellaris-pay-service` | 6087 | 支付、回调与退款接入 |
-| `stellaris-migrate-service` | 6088 | 订单座位状态迁移与补偿 |
-| `stellaris-order-service` | 8081 | 订单落库、支付/取消状态机、退款与对账 |
-| `stellaris-admin-service` | 10082 | 服务管理入口，可选启动 |
+| user-service | 6082 | 用户、登录、购票人 |
+| base-data-service | 6083 | 区域、渠道、基础配置 |
+| customize-service | 6084 | 动态规则与管理配置 |
+| gateway-service | 6085 | 路由、鉴权、限流、舱壁 |
+| program-service | 6086 | 节目、静态座位、Redis 原子准入 |
+| pay-service | 6087 | 支付、回调、退款 |
+| order-service | 8081 | 交易库存、订单、Stream 消费、关单 |
+| admin-service | 10082 | 服务管理，可选 |
 
-### Docker 基础设施
-
-| 组件 | 镜像版本 | 主机端口 |
-| --- | --- | --- |
-| MySQL | 8.0 | 3306 |
-| Redis | 7 Alpine | 6380（容器内 6379） |
-| Kafka | 3.9.1 | 9092 |
-| Nacos | 2.3.2 | 8848、9848、9849 |
-| Elasticsearch | 8.16.1 | 9201（容器内 9200） |
-
-Docker Compose 只负责基础设施，不会自动启动 Java 业务服务或 Vue 前端。编排文件中的账户和密码仅用于本机演示，不能沿用到公网或生产环境。
+业务服务的 `/interior/**` 接口只允许注册中心内调用，Gateway 对这些路径返回 404。生产部署还应在网络层禁止公网直连业务服务端口。
 
 ## 快速开始
 
-### 1. 环境要求
+环境要求：JDK 17、Maven 3.8+、Node.js 18+、Docker Compose v2。Windows 建议先执行 `git config --global core.longpaths true`。
 
-| 工具 | 要求 |
-| --- | --- |
-| JDK | 17 |
-| Maven | 3.8+，建议 3.9+ |
-| Node.js | 建议 18+，附带 npm |
-| Docker | Docker Desktop 或 Docker Engine + Compose v2 |
-| 系统资源 | 建议至少为 Docker 分配 6 GB 内存 |
-
-Windows 上仓库存在较深的 Java 包路径，建议在克隆前启用 Git 长路径支持：
+### 1. 启动基础设施
 
 ```powershell
-git config --global core.longpaths true
-git clone https://github.com/XKYuanii/Stellaris.git
-Set-Location Stellaris
+docker compose -p stellaris-local -f ops/docker-compose.local.yml up -d --wait
+docker compose -p stellaris-local -f ops/docker-compose.local.yml ps
 ```
 
-Linux/macOS 可直接执行 `git clone`，无需设置 `core.longpaths`。
+默认启动 MySQL、Redis、Nacos 和 Elasticsearch，不再启动 Kafka。全新 MySQL 数据卷会执行 [单交易库 Schema](sql/reliability/20260910_single_trade_stream_schema.sql)，创建 `stellaris_trade`；旧数据卷不会自动补执行初始化脚本。
 
-### 2. 启动基础设施
-
-```powershell
-docker compose -p stellaris-interview -f ops/docker-compose.interview.yml up -d --wait
-docker compose -p stellaris-interview -f ops/docker-compose.interview.yml ps
-```
-
-首次启动会自动创建以下数据库：
-
-```text
-stellaris_base_data
-stellaris_customize
-stellaris_order_0 / stellaris_order_1
-stellaris_pay_0 / stellaris_pay_1
-stellaris_program_0 / stellaris_program_1
-stellaris_user_0 / stellaris_user_1
-```
-
-初始化 SQL 只会在全新的 MySQL 数据卷上自动执行。已有数据卷需要按 [可靠性 SQL 清单](sql/reliability/README.md) 手工升级，不要在有业务数据的环境直接运行演示重置脚本。
-
-### 3. 构建后端
-
-完整构建并执行测试：
+### 2. 构建后端
 
 ```powershell
 mvn clean install
 ```
 
-只为本地启动准备依赖：
+本地启动前只安装依赖可使用 `mvn -DskipTests install`。
 
-```powershell
-mvn -DskipTests install
-```
+### 3. 启动服务
 
-### 4. 启动业务服务
-
-在不同终端中启动服务。建议基础服务在前、Gateway 在最后：
+在不同终端依次启动：
 
 ```powershell
 mvn -f stellaris-server/stellaris-base-data-service/pom.xml spring-boot:run
 mvn -f stellaris-server/stellaris-user-service/pom.xml spring-boot:run
 mvn -f stellaris-server/stellaris-customize-service/pom.xml spring-boot:run
 mvn -f stellaris-server/stellaris-order-service/pom.xml spring-boot:run
-mvn -f stellaris-server/stellaris-migrate-service/pom.xml spring-boot:run
 mvn -f stellaris-server/stellaris-pay-service/pom.xml spring-boot:run
 ```
 
-Program 服务连接宿主机 Elasticsearch 时，需要使用 Compose 暴露的 9201 端口：
+Program 连接 Compose 的 Elasticsearch：
 
 ```powershell
 $env:STELLARIS_ELASTICSEARCH_URL = '127.0.0.1:9201'
 mvn -f stellaris-server/stellaris-program-service/pom.xml spring-boot:run
 ```
 
-最后启动 Gateway：
+隔离本机演示可以打开无签名模式，然后启动 Gateway：
 
 ```powershell
-# 仅本机体验使用；默认 false，生产或联网环境必须保持关闭并配置完整签名。
 $env:STELLARIS_ALLOW_NORMAL_ACCESS = 'true'
 mvn -f stellaris-server/stellaris-gateway-service/pom.xml spring-boot:run
 ```
 
-可选的管理服务：
+该开关不能用于联网环境。默认入口为 Gateway `http://127.0.0.1:6085`、Nacos `http://127.0.0.1:8848/nacos/`、Elasticsearch `http://127.0.0.1:9201`。
 
-```powershell
-mvn -f stellaris-server/stellaris-admin-service/pom.xml spring-boot:run
-```
-
-### 5. 启动前端
-
-仓库不提交本地 `.env.development` / `.env.production`。首次启动先从示例创建开发配置：
+### 4. 启动前端
 
 ```powershell
 Set-Location vue3
@@ -279,90 +194,51 @@ npm ci
 npm run dev
 ```
 
-Bash 用户将 `Copy-Item` 替换为 `cp .env.example .env.development`。
+默认 Web 地址为 `http://127.0.0.1:5173`。
 
-默认访问入口：
-
-- Web：`http://127.0.0.1:5173`
-- Gateway：`http://127.0.0.1:6085`
-- Gateway 健康检查：`http://127.0.0.1:6085/actuator/health`
-- Knife4j 聚合文档：`http://127.0.0.1:6085/doc.html`
-- Nacos 控制台：`http://127.0.0.1:8848/nacos/`
-- Elasticsearch：`http://127.0.0.1:9201`
-
-### 6. 停止环境
+### 5. 停止环境
 
 ```powershell
-docker compose -p stellaris-interview -f ops/docker-compose.interview.yml down
+docker compose -p stellaris-local -f ops/docker-compose.local.yml down
 ```
 
-`down` 会保留命名数据卷。只有在明确接受清空本地 MySQL、Redis、Kafka 和 Elasticsearch 数据时，才使用 `down -v`。
+只有明确接受清空本地数据时才追加 `-v`。
 
-## 配置与密钥
+## 配置入口
 
-仓库不保存 RSA 私钥或支付内容密钥。默认的 [`vue3/.env.example`](vue3/.env.example) 关闭请求签名，适合本地体验；启用签名前，需要同时配置前端签名私钥和数据库渠道密钥。
-
-### 常用环境变量
-
-| 变量 | 默认值/用途 |
+| 变量 | 用途 |
 | --- | --- |
-| `STELLARIS_REDIS_HOST` | Redis 主机，默认 `127.0.0.1` |
-| `STELLARIS_REDIS_PORT` | Redis 端口，默认 `6380` |
-| `STELLARIS_KAFKA_SERVERS` | Kafka 地址，默认 `127.0.0.1:9092` |
-| `STELLARIS_NACOS_DISCOVERY_IP` | 服务向 Nacos 注册的可访问 IP，默认 `127.0.0.1` |
-| `STELLARIS_ELASTICSEARCH_URL` | Elasticsearch 地址；Compose 环境应设为 `127.0.0.1:9201` |
-| `STELLARIS_ORDER_PROGRAM_QPS` | 节目维度下单令牌补充速率 |
-| `STELLARIS_ORDER_PROGRAM_BURST` | 节目维度突发容量 |
-| `STELLARIS_ORDER_GLOBAL_QPS` | 全局下单令牌补充速率 |
-| `STELLARIS_ORDER_GLOBAL_BURST` | 全局突发容量 |
-| `STELLARIS_ALLOW_NORMAL_ACCESS` | 默认 `false`；仅隔离本机演示时临时设为 `true` |
-| `ALIPAY_MERCHANT_PRIVATE_KEY` | 支付宝商户私钥，不提供默认值 |
-| `ALIPAY_CONTENT_KEY` | 支付宝内容加密密钥，不提供默认值 |
+| `STELLARIS_TRADE_DB_URL` | order-service 单交易库连接 |
+| `STELLARIS_TRADE_DB_USERNAME` / `STELLARIS_TRADE_DB_PASSWORD` | 交易库账号 |
+| `STELLARIS_REDIS_HOST` / `STELLARIS_REDIS_PORT` | Redis 地址，Compose 端口为 6380 |
+| `STELLARIS_NACOS_DISCOVERY_IP` | 服务注册的可访问 IP |
+| `STELLARIS_ELASTICSEARCH_URL` | Elasticsearch 地址，Compose 使用 9201 |
+| `STELLARIS_ORDER_PROGRAM_QPS` / `STELLARIS_ORDER_GLOBAL_QPS` | 下单令牌补充速率 |
+| `STELLARIS_ORDER_PROGRAM_BURST` / `STELLARIS_ORDER_GLOBAL_BURST` | 下单突发容量 |
+| `STELLARIS_ALLOW_NORMAL_ACCESS` | 仅隔离本机演示的无签名开关，默认关闭 |
 
-Java RSA 演示入口使用 `STELLARIS_RSA_*` 和 `STELLARIS_DEMO_*` 环境变量。真实凭据应通过本地环境变量或专用密钥管理系统注入，不要写回 YAML、SQL、Java 源码或提交到 Git。
+Stream 消费批量、Pending 重领空闲时间、到期扫描批量和接单积压阈值位于 order/program 的 `application.yml`。生产值必须由相同硬件、数据分布和请求模型下的压测决定。
 
-## API 与参考请求
+## API 语义
 
-v5 下单入口：
+创建订单：
 
 ```text
 POST /stellaris/program/program/order/create/v5
 ```
 
-无签名 demo 请求还需携带 `X-Stellaris-Demo-User-Id`。该值可由客户端伪造，只用于隔离本机；网关消费并删除它，再重建下游 `userId`。签名模式始终从 Token 获取身份。测试文件同时保留普通 `userId` 头，仅用于直连 6086/8081 的内部基准场景，业务服务端口不得暴露公网。
+请求必须携带稳定 `requestId`。返回订单号后，前端先查询订单；订单尚未落地时调用 `/stellaris/order/order/materialization` 区分 `PROCESSING`、`CREATED` 和 `REJECTED`。
 
-请求体模板见 [`ops/v5-order-body.example.json`](ops/v5-order-body.example.json)。完成测试数据准备并取得体验账户 Token 后，可以使用仓库提供的轻量调用脚本：
+下单结果、订单详情、支付和取消都使用 Gateway 注入的当前用户身份。正文中的 userId 不能替代登录身份。内部库存初始化、权威余票聚合和 Redis 终态同步接口不经公网 Gateway 暴露。
 
-```powershell
-./ops/Invoke-StellarisV5Load.ps1 `
-  -BodyTemplate ./ops/v5-order-body.example.json `
-  -Token '<your-token>' `
-  -Requests 3 `
-  -Concurrency 1
-```
-
-脚本会为每次调用生成独立 `requestId`，结果写入被 Git 忽略的 `output/`。不要在不了解数据准备与清理流程时直接提高并发量。
-
-常用恢复接口包括（以下均属于管理面，不允许经外部 Gateway 调用）：
-
-- `POST /order/reconciliation/task`：执行订单侧对账任务。
-- `POST /order/reservation/transition/replay`：重放座位迁移事件。
-- `POST /order/create/dlt/replay`：重放下单死信。
-- `POST /program/reference/reconciliation/run`：执行 v5 多源对账。
-- `POST /program/reference/reconciliation/stream/dead/replay`：重放 Stream 死信。
-
-恢复接口会改变业务状态，默认由 `stellaris.management.operations.enabled=false` 禁用；只应在内网管理面、隔离演示数据或明确的故障恢复流程中临时开启。
-
-## 测试与验证
-
-### 常规验证
+## 验证
 
 ```powershell
-# 后端测试
+# 当前主链模块及依赖
+mvn -pl stellaris-server/stellaris-order-service,stellaris-server/stellaris-program-service -am test
+
+# 全仓后端
 mvn test
-
-# 后端完整打包
-mvn clean package
 
 # 前端生产构建
 Set-Location vue3
@@ -370,111 +246,25 @@ npm ci
 npm run build
 ```
 
-准备好隔离测试节目后，可用一个入口验证 Gateway 边界、创建幂等、身份缺失、跨用户查单、reservation 一致性、Stream/PEL/dead/Kafka 收敛，以及正常取消后的 MySQL/Redis 库存与账号计数恢复；它不执行压测：
+故障验收至少覆盖：提交后 ACK 前终止消费者、交易库停机与入口背压、Redis 同步失败后恢复、同一请求重复投递十次、未支付订单到期关闭。执行步骤见 [可靠性练习](docs/RELIABILITY_EXERCISES.md)。性能数字只有在记录硬件、配置、入口、场次分布和每单票数后才可对外引用。
 
-```powershell
-# Gateway 必须在隔离本机环境以 STELLARIS_ALLOW_NORMAL_ACCESS=true 启动
-& '.\tests\correctness\Invoke-StellarisV5Correctness.ps1'
-```
+## 可靠性边界
 
-### JMeter 与容量测试
+- Redis 是受理阶段的可靠事件源，必须配置并验证 AOF、复制、备份和切换；异步复制仍可能丢最近写入。
+- 单个热门节目位于一个 Redis Hash Slot，增加 Cluster 主节点不会线性提高该场次吞吐。
+- 单交易库消除了订单、座位和账号额度的跨库提交窗口；它不消除 Redis/MySQL、支付渠道和缓存同步的系统边界。
+- Stream 长度达到配置阈值时 Lua 在修改库存前拒绝新请求；阈值需要结合最老消息年龄、Redis 内存和数据库落单延迟监控。
+- 模拟支付用于本地闭环；真实渠道的证书、回调安全、对账与资金合规需要独立配置和验证。
 
-- [轻量 JMeter 说明](tests/jmeter/README.md)
-- [完整 benchmark 说明](tests/benchmark/README.md)
-- [容量测试说明](tests/benchmark/CAPACITY-TEST.md)
-- [v4/v5 对照方法](tests/benchmark/V4-V5-COMPARISON.md)
+## 文档
 
-压测前必须准备隔离测试数据，压测后必须执行清理和一致性校验。吞吐、P95/P99 与错误率只在硬件、JVM、数据规模、并发模型和限流参数同时记录时才有意义。
-
-### 最近一次本地验证基线
-
-2026-08-29 的历史迁移验证包括：
-
-- Maven 47 模块完整打包成功，49 个测试通过，0 failure / error / skip。
-- Vue 生产构建成功，共转换 1666 个模块。
-- MySQL、Redis、Kafka、Nacos、Elasticsearch 五个容器通过健康检查。
-- v5 直连 Program Service 的 1 / 3 / 10 并发场景共 14 次调用全部成功；该口径绕过 Gateway，不能代表系统入口容量。
-- Gateway 1 / 3 并发成功；10 并发时按现有 USER 维度 `3 req/s` 规则返回 3 个成功和 7 个 HTTP 429，属于预期限流。
-- 验证后订单、座位和 Redis owner 数据完成清理与回收。
-
-这组结果只证明当时版本的本地链路可运行，不代表当前版本回归结果或生产容量结论。当前版本以 Maven 测试和 `tests/correctness` 的 Gateway 正确性脚本为准。
-
-## 可观测性与排障
-
-- 核心服务只暴露 Actuator 的 `health/info/prometheus`；可通过 `/actuator/health` 检查健康状态，通过 `/actuator/prometheus` 导出指标。
-- Prometheus 告警规则位于 [`ops/prometheus/stellaris-reliability-alerts.yml`](ops/prometheus/stellaris-reliability-alerts.yml)。
-- 业务日志写入本地 `logs/`，该目录不会提交到 Git。
-- JMeter 和轻量负载结果写入 `output/`，该目录同样被忽略。
-- Kafka DLT、Redis Stream 死信、迁移事件和退款 DEAD 状态都有独立的审计或重放入口。
-
-常见问题：
-
-| 现象 | 检查方向 |
-| --- | --- |
-| Windows 克隆时报路径过长 | 克隆前执行 `git config --global core.longpaths true` |
-| Java 服务连不上 Redis | Compose 对外端口是 6380，不是 6379 |
-| Program 服务连不上 Elasticsearch | 设置 `STELLARIS_ELASTICSEARCH_URL=127.0.0.1:9201` |
-| 服务未出现在 Gateway | 检查 Nacos 8848、服务注册 IP 与 `stellaris-*` 服务名 |
-| 新 SQL 没有自动执行 | Docker 初始化脚本只对全新 MySQL 数据卷执行 |
-| Elasticsearch 集群为 yellow | 单节点环境下副本无法分配通常是预期现象，容器健康仍可为正常 |
-| 下单收到 HTTP 429 | 先核对 USER / PROGRAM / GLOBAL 三层令牌桶，不要直接判定为服务故障 |
-| 重试后座位或订单不一致 | 先运行只读对账，再按明确结果决定是否重放或清理 |
-
-## 文档导航
-
-### 架构与可靠性
-
-- [架构演进](docs/ARCHITECTURE_EVOLUTION.md)
+- [交易架构说明](docs/SINGLE_TRADE_STREAM_ARCHITECTURE.md)
+- [Redis Stream 与单交易库 ADR](docs/ADR-002-redis-stream-order-event.md)
 - [业务不变量](docs/BUSINESS_INVARIANTS.md)
-- [已知边界](docs/KNOWN_BOUNDARIES.md)
 - [故障矩阵](docs/FAILURE_MATRIX.md)
-- [可靠性练习](docs/RELIABILITY_EXERCISES.md)
-- [Benchmark 口径](docs/BENCHMARK.md)
-
-### ADR
-
-- [Lua 与分布式锁](docs/adr/001-lua-vs-distributed-lock.md)
-- [预订前置 Intent 的演进记录](docs/adr/002-order-intent-before-reservation.md)
-- [至少一次与业务幂等](docs/adr/003-at-least-once-and-idempotency.md)
-- [分布式限流](docs/adr/004-distributed-rate-limiter.md)
-- [延迟取消 lease 队列](docs/adr/005-delay-cancel-lease-queue.md)
-- [v5 Redis Stream 参考决策](docs/ADR-002-redis-stream-order-event.md)
-
-### 学习与面试材料
-
-- [项目亮点与代码索引](docs/Stellaris项目六大亮点-代码与面试速成.md)
-- [简历项目介绍](docs/RESUME_PROJECT_STELLARIS_2026.md)
-- [带来源的面试题库](docs/INTERVIEW_BANK_SOURCED_2026.md)
-- [完整修改记录](CHANGELOG.md)
-
-## 已知边界
-
-- Docker Compose 使用单节点 MySQL、Redis、Kafka、Nacos 和 Elasticsearch，只能验证流程可执行，不能证明基础设施高可用。
-- v5 的事件创建耐久性边界位于 Redis；极端 Redis 数据丢失仍需要依靠数据库事实和对账恢复。
-- 当前对账结果通过接口、日志和 Prometheus 暴露，尚未落独立的 `reconciliation_run/finding` 历史表。
-- 遗留版本 Lua 只用于架构对照，不能据此宣称整个项目均支持 Redis Cluster。
-- 支付默认以模拟链路为主；真实支付宝参数、证书、回调域名和安全合规需要单独配置。
-- 当前退款模型只支持全额退款，不包含部分退款、组合支付和复杂资金账务。
-- 高并发结果依赖本机硬件和参数；仓库不把单机数字包装成生产 SLA。
-- 历史 V4/V5 A/B 性能材料直连单实例 Program Service，绕过 Gateway；只能说明同步接单实现差异，不能描述为外部入口或完整系统容量。
-- 业务服务端口属于可信内网边界；若将 Program/Order/User 等端口直接暴露公网，请求头身份会失去可信前提。
-- 尚未完成系统化的 `kill -9`、网络分区、中间件中断和恢复时间收敛证明。
-
-更细的限制、风险和演示表述见 [KNOWN_BOUNDARIES.md](docs/KNOWN_BOUNDARIES.md)。
-
-## 贡献
-
-欢迎通过 Issue 或 Pull Request 提交缺陷、测试、文档和可靠性改进。提交前建议至少运行：
-
-```powershell
-mvn test
-Set-Location vue3
-npm ci
-npm run build
-```
-
-新增并发或补偿逻辑时，请同步说明它维护的业务不变量、幂等键、失败重试边界、清理条件和可观测指标。
+- [架构演进](docs/ARCHITECTURE_EVOLUTION.md)
+- [已知边界](docs/KNOWN_BOUNDARIES.md)
 
 ## License
 
-本项目使用 [Apache License 2.0](LICENSE)。
+Apache License 2.0，见 [LICENSE](LICENSE)。

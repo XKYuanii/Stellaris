@@ -18,7 +18,6 @@
 
     <modules>
         <module>stellaris-order-service</module>
-        <module>stellaris-migrate-service</module>
         <module>stellaris-gateway-service</module>
         <module>stellaris-base-data-service</module>
         <module>stellaris-user-service</module>
@@ -28,4 +27,21 @@
         <module>stellaris-pay-service</module>
         <module>stellaris-mybatis-plus-service</module>
     </modules>
+
+    <build>
+        <plugins>
+            <!--
+                Spring Boot repackages this artifact with reactor dependencies under BOOT-INF/lib.
+                Force the service JAR to be recreated when only a shared client/resource changed.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>${maven-jar.version}</version>
+                <configuration>
+                    <forceCreation>true</forceCreation>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>

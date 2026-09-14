@@ -1,36 +1,26 @@
 # 订单架构演进
 
-## 目标
+当前唯一运行入口是 v5/reference。早期版本只用于说明为什么最终方案做减法。
 
-项目聚焦为一个有架构演进、性能数据、故障闭环和取舍说明的高并发票务面试项目。历史接口仅用于复现实验和比较；最终参考实现固定为 `v5/reference`。
+| 阶段 | 方案 | 暴露出的主要问题 |
+| --- | --- | --- |
+| v1 | MySQL 直接扣库存 | 洪峰直接进入数据库 |
+| v2 | JVM 本地锁 | 多实例不共享 |
+| v2.1 | 节目级分布式锁 | 热门节目被串行化 |
+| v3 | 多座位细粒度锁 | 排序、续租、异常释放复杂 |
+| v3.1 | Redis Lua 锁座 | 锁座后 Java 发消息存在双写窗口 |
+| v4 | Kafka 异步下单 | Kafka 不能与 Redis 锁座原子提交 |
+| v4.1 | Intent/Outbox + Kafka | 可靠但热路径和补偿层级过多 |
+| v5（当前） | Lua 原子预占与 XADD + Stream 直连 + 单交易库事务 | 保留 Redis/MySQL 边界，换取更清晰的恢复模型 |
 
-| 版本 | 注册 Key | 阶段 | 核心方案 | 展示目的 |
-| --- | --- | --- | --- | --- |
-| v1 | `v1` | EXPERIMENTAL | MySQL 直接扣库存 | 最简单基线 |
-| v2 | `v2` | EXPERIMENTAL | JVM 本地锁 | 单实例有效、多实例失效 |
-| v21 | `v21` | EXPERIMENTAL | Redisson 节目级锁 | 分布式正确但串行化严重 |
-| v3 | `v3` | EXPERIMENTAL | 细粒度座位锁 | 锁数量、顺序和续租复杂性 |
-| v31 | `v31` | EXPERIMENTAL | Redis Lua 锁座 | 原子校验与修改 |
-| v4 | `v4` | EXPERIMENTAL | 直接 Kafka 异步下单 | 双写丢消息窗口 |
-| v41 | `v41` | EXPERIMENTAL | Outbox + 幂等消费 | 可靠事件 |
-| v5 | `v5` | REFERENCE | 分层限流 + 有界 Lua/Stream + Kafka 幂等 + 对账 | 最终参考实现 |
+## 当前参考链路
 
-## 注册约束
+    Gateway 分层令牌桶 + 本机舱壁
+      -> Java 有界候选座位
+      -> Redis O(k) Lua：幂等、快速限购、预占、XADD
+      -> Order Consumer Group：实时读取 + PEL 重领
+      -> MySQL 单事务：请求、最终限购、座位 CAS、订单
+      -> 支付/关单 CAS
+      -> Redis 同步记录重试
 
-- `ProgramOrderVersion` 中每个注册 Key 必须唯一；启动测试覆盖此约束。
-- `ProgramOrderContext` 遇到两个策略声明同一个 Key 时立即抛出异常，禁止依赖 Spring Bean 返回顺序覆盖。
-- Swagger 中的 v1～v41 均标注为“实验”；v5 在最终策略实现完成前不暴露空路由。
-
-## 参考链路
-
-```text
-网关 USER/PROGRAM/GLOBAL 分布式限流
-  -> 本机并发隔离
-  -> 计算有限候选座位
-  -> 有界 Lua 原子锁座并 XADD Redis Stream
-  -> Consumer Group 中继（Pending 重领/死信）
-  -> Kafka 至少一次投递
-  -> MySQL reservationId CAS + 订单服务幂等创建
-  -> 支付 / 超时取消状态机
-  -> Stream、订单、库存对账
-```
+订单服务先采用单库获取明确的本地事务。先做索引、慢 SQL、归档和读路径治理；只有实测达到单库写瓶颈后，才按场次等能保证整单同片的交易维度评估分片。历史 ShardingSphere 和路由基因材料不能描述为当前运行能力。

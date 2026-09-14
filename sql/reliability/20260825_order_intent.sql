@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS d_order_intent_0 (
     order_number BIGINT NULL,
     intent_status VARCHAR(32) NOT NULL,
     seat_snapshot LONGTEXT NULL,
-    order_payload LONGTEXT NULL COMMENT '锁座前持久化的完整OrderCreateMq',
+    order_payload LONGTEXT NULL COMMENT '锁座前持久化的完整订单创建事件',
     amount DECIMAL(18,2) NULL,
     expire_time DATETIME NOT NULL,
     retry_count INT NOT NULL DEFAULT 0,

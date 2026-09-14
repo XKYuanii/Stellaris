@@ -116,33 +116,18 @@
         </div>
       </div>
     </div>
-    <el-dialog
-        v-model="dialogVisible"
-       style="width: 450px;height:500px;background: #FFE7BA;"
-
-    >
-      <div class="content">当前排队人数太多，请稍候再试~</div>
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button @click="dialogVisible = false" class="btn1">返回</el-button>
-          <el-button   class="submit btn2"    @click="dialogVisible = false">
-            继续尝试
-          </el-button>
-        </div>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <script setup name="orderIndex">
-import {computed, ref, nextTick, onActivated, onMounted,onBeforeUnmount } from 'vue'
+import {computed, ref, onMounted} from 'vue'
 import pay from "@/assets/section/pay.png"
-import {getCurrentDateTime,formatDateWithWeekday,useMitt} from '@/utils/index'
-import {useRoute, useRouter} from 'vue-router'
+import {formatDateWithWeekday} from '@/utils/index'
+import {useRouter} from 'vue-router'
 import { getUserIdKey} from "@/utils/auth";
 import { getPersonInfoId} from '@/api/personInfo'
 import {getTicketUser} from "@/api/buyTicketUser";
-import {getOrderCacheApi, orderCreateV1Api, orderCreateV2Api, orderCreateV3Api, orderCreateV4Api, orderCreateV5Api} from '@/api/order.js'
+import {orderCreateV5Api} from '@/api/order.js'
 import {ElMessage} from "element-plus";
 //获取用户信息
 import useUserStore from "../../store/modules/user";
@@ -155,21 +140,15 @@ const countPrice = ref('')
 const num = ref('')
 const telNum = ref('')
 const ticketInfoArr = ref([])
-const dialogVisible = ref(false)
 const ticketUserIdArr = ref([])
 //票档id
 const ticketCategoryId = ref('')
-const orderNumberCache = ref('')
 const orderRequestId = ref('')
 const loading = ref(false)
 // 选座相关数据
 const seatIdList = ref([])
 const isChooseSeat = ref(false)
 const selectedSeatsData = ref([])
-const pollingTimer = ref(null);
-const pollingToken = ref(0);
-// 10s的时间（毫秒）
-const tenSecond = 10000;
 const ticketLimit = computed(() => Math.max(1, Number(num.value) || 1))
 const canSubmit = computed(() => ticketUserIdArr.value.length === ticketLimit.value)
 
@@ -211,55 +190,6 @@ function buyTicketInfo(){
 
 }
 
-async function getOrderCache(orderNumber){
-  const orderNumberParams = {orderNumber}
-  const response = await getOrderCacheApi(orderNumberParams)
-  if (response.code == '0' && response.data != null){
-    orderNumberCache.value = response.data;
-  }
-  return orderNumberCache.value
-}
-
-//订单查询轮训
-const startPolling = (orderNumber,startTime) => {
-  const currentPollingToken = ++pollingToken.value
-  const poll = async () => {
-    if (currentPollingToken !== pollingToken.value) return
-    const currentTime = Date.now();
-    if (currentTime - startTime >= tenSecond) {
-      stopPolling();
-      //1. 大于10秒，此订单被舍弃，显示排队弹框
-      //2. loading弹出框关闭
-      loadingClose();
-      //3. 排队弹框显示
-      dialogShow();
-      return;
-    }
-    try {
-      await getOrderCache(orderNumber)
-    } catch (error) {
-      console.warn('订单状态轮询失败，将按退避继续', error)
-    }
-    if (currentPollingToken !== pollingToken.value) return
-    if (orderNumberCache.value !== null && orderNumberCache.value !== '') {
-      stopPolling();
-      //执行到这里说明订单创建成功
-      //loading弹框关闭
-      loadingClose();
-      router.replace({path:'/order/payMethod',query:{orderNumber:orderNumberCache.value},state:{'orderNumber':orderNumberCache.value}})
-      return
-    }
-    pollingTimer.value = setTimeout(poll, 300)
-  }
-  poll()
-};
-//停止轮训
-const stopPolling = () => {
-  pollingToken.value++;
-  clearTimeout(pollingTimer.value);
-  pollingTimer.value = null;
-};
-
 /**
  * 提交订单
  * */
@@ -274,10 +204,6 @@ async function submitOrder(){
     })
     return;
   }
-
-  // 新的一次提交不能复用上一次轮询结果，否则可能跳转到旧订单。
-  stopPolling();
-  orderNumberCache.value = '';
 
   // 根据是否手动选座构建不同的请求参数
   if (!orderRequestId.value) {
@@ -307,44 +233,34 @@ async function submitOrder(){
     orderCreateParams.ticketCount = num.value
   }
 
-  const createOrderVersion = Number(import.meta.env.VITE_CREATE_ORDER_VERSION)
-  const createOrderApi = {
-    1: orderCreateV1Api,
-    2: orderCreateV2Api,
-    3: orderCreateV3Api,
-    4: orderCreateV4Api,
-    5: orderCreateV5Api
-  }[createOrderVersion]
-  if (!createOrderApi) {
-    ElMessage.error('下单版本配置无效')
-    return
-  }
-
   loadingShow();
   try {
-    const response = await createOrderApi(orderCreateParams)
+    const response = await orderCreateV5Api(orderCreateParams)
     if (response.code != '0' || response.data == null) {
+      // Gateway 将超时等基础设施异常包装为 -100；此时服务端可能已经锁座并写入 Stream，
+      // 必须保留相同 requestId 重试查询同一结果。只有明确的业务拒绝才结束本次幂等身份。
+      const resultUnknown = response == null
+          || (response.data == null && response.code == '0')
+          || Number(response?.code) === -100
+      if (!resultUnknown) orderRequestId.value = ''
       loadingClose();
-      ElMessage.error(response.message || '下单失败，请稍后重试');
+      ElMessage.error(resultUnknown
+          ? '下单结果暂时未知，已保留本次请求标识，请直接重试'
+          : (response.message || '下单失败，请稍后重试'));
       return
     }
-    if (createOrderVersion <= 3) {
-      loadingClose();
-      const orderNumber = response.data;
-      await router.replace({path:'/order/payMethod',query:{orderNumber},state:{'orderNumber':orderNumber}})
-      return
-    }
-    startPolling(response.data, Date.now());
+    loadingClose();
+    const orderNumber = response.data;
+    await router.replace({
+      path:'/order/payMethod',
+      query:{orderNumber},
+      state:{orderNumber, awaitMaterialization:true}
+    })
   } catch (error) {
     loadingClose();
     ElMessage.error(error?.message || '网络异常，请稍后重试');
   }
 }
-//弹出排队框
-function dialogShow(){
-  dialogVisible.value = true
-}
-
 function loadingShow(){
   loading.value = true
 }
@@ -353,9 +269,6 @@ function loadingClose(){
   loading.value = false;
 }
 
-onBeforeUnmount(() => {
-  stopPolling();
-});
 </script>
 
 <style scoped lang="scss">
@@ -989,39 +902,6 @@ onBeforeUnmount(() => {
       }
     }
   }
-  .content{
-    width: 100%;
-    height:30px;
-    line-height: 30px;
-    text-align: center;
-    font-size: 24px;
-    margin-top: 100px;
-  }
-  .btn1{
-    width: 300px;
-    height: 50px;
-    background: rgb(255, 55, 29);
-    color: #FFFFFF;
-    display: block;
-    margin: 0 auto;
-    border-radius: 50px;
-    font-size: 20px;
-  }
-  .btn2{
-    width: 300px;
-   border: none;
-    display: block;
-    margin: 20px auto;
-    background: transparent;
-    font-size: 20px;
-  }
-}
-:deep(.el-dialog){
-
-  border-radius: 20px;
-}
-:deep(.el-dialog__footer){
-  padding-top: 100px ;
 }
 :deep(.el-radio__input.is-checked .el-radio__inner) {
   border-color: rgba(255, 55, 29, 0.85);

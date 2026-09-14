@@ -38,7 +38,7 @@ spring:
       port: ${STELLARIS_REDIS_PORT:6380}
       password: redis123
       timeout: 5000                     # 连接超时时间(5秒)
-      jedis:
+      lettuce:
         pool:
           max-active: 600               # 最大活跃连接数(订单服务负载高)
           max-idle: 120                 # 最大空闲连接数

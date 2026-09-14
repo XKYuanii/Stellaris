@@ -31,6 +31,8 @@ public class PayAutoConfig {
         alipayConfig.setCharset(AlipayConstants.CHARSET_UTF8);
         alipayConfig.setAlipayPublicKey(aliPayProperties.getAlipayPublicKey());
         alipayConfig.setSignType(AlipayConstants.SIGN_TYPE_RSA2);
+        alipayConfig.setConnectTimeout(aliPayProperties.getConnectTimeout());
+        alipayConfig.setReadTimeout(aliPayProperties.getReadTimeout());
         //构造client
         return new DefaultAlipayClient(alipayConfig);
     }

@@ -20,25 +20,6 @@ import java.util.concurrent.ThreadLocalRandom;
 public class SnowflakeIdGenerator {
     
     private static final long BASIS_TIME = 1288834974657L;
-    /**
-     * 订单号使用独立布局。2024-01-01 作为纪元，40 位毫秒时间可使用约 34 年。
-     *
-     * <pre>
-     * 0 | 40 bit timestamp | 5 bit datacenter | 5 bit worker | 7 bit sequence | 6 bit route gene
-     * </pre>
-     *
-     * 原实现直接在标准雪花 ID 的 12 位序列号后追加 6 位基因，覆盖了 worker/data-center 位，
-     * 在同一毫秒内会产生碰撞。订单号因此必须使用完全独立且互不重叠的位段。
-     */
-    private static final long ORDER_BASIS_TIME = 1704067200000L;
-    private static final long ORDER_GENE_BITS = 6L;
-    private static final long ORDER_SEQUENCE_BITS = 7L;
-    private static final long ORDER_WORKER_ID_SHIFT = ORDER_GENE_BITS + ORDER_SEQUENCE_BITS;
-    private static final long ORDER_DATACENTER_ID_SHIFT = ORDER_WORKER_ID_SHIFT + 5L;
-    private static final long ORDER_TIMESTAMP_SHIFT = ORDER_DATACENTER_ID_SHIFT + 5L;
-    private static final long ORDER_SEQUENCE_MASK = (1L << ORDER_SEQUENCE_BITS) - 1;
-    private static final long ORDER_GENE_MASK = (1L << ORDER_GENE_BITS) - 1;
-    private static final long ORDER_TIMESTAMP_MASK = (1L << 40L) - 1;
     private final long workerIdBits = 5L;
     private final long datacenterIdBits = 5L;
     private final long maxWorkerId = -1L ^ (-1L << workerIdBits);
@@ -63,10 +44,6 @@ public class SnowflakeIdGenerator {
    
     private long lastTimestamp = -1L;
 
-    private long orderSequence = 0L;
-
-    private long lastOrderTimestamp = -1L;
-    
     private InetAddress inetAddress;
     
     public SnowflakeIdGenerator(WorkDataCenterId workDataCenterId) {
@@ -193,86 +170,6 @@ public class SnowflakeIdGenerator {
             | sequence;
     }
     
-    /**
-     * @deprecated 此方法已被废弃，不需要学习
-     */
-    @Deprecated
-    public synchronized long getOrderNumber(long userId, long tableCount, long databaseCount) {
-        validateRouteCapacity(tableCount, databaseCount);
-        return getOrderNumber(userId);
-    }
-    
-    /**
-     * @deprecated 此方法已被废弃，不需要学习
-     */
-    @Deprecated
-    public synchronized long getOrderNumber(long userId, long tableCount) {
-        validateRouteCapacity(tableCount, 1L);
-        return getOrderNumber(userId);
-    }
-    
-    /**
-     * 【方案1】生成订单编号 - 固定预留6位基因位
-     * 核心思想：预留足够多的基因位，支持未来扩容而无需修改生成逻辑
-     * 
-     * 基因位分配（6位可支持64种组合）：
-     * - 当前：2库4表 = 8种组合，占用3位
-     * - 最大支持：8库 × 8表 = 64种组合
-     * - 或：4库 × 16表 = 64种组合
-     * 
-     * 订单号结构：[时间戳][数据中心ID][机器ID][序列号][userId后6位]
-     * 
-     * 扩容时只需修改分片算法配置，无需修改此方法
-     * 
-     * @param userId 用户ID
-     * @return 订单编号
-     */
-    public synchronized long getOrderNumber(long userId) {
-        assertNodeLeaseValid();
-        long timestamp = getOrderBase();
-        long elapsed = timestamp - ORDER_BASIS_TIME;
-        if (elapsed < 0 || elapsed > ORDER_TIMESTAMP_MASK) {
-            throw new IllegalStateException("Order number timestamp is outside the supported range");
-        }
-        long userGene = userId & ORDER_GENE_MASK;
-        return (elapsed << ORDER_TIMESTAMP_SHIFT)
-                | (datacenterId << ORDER_DATACENTER_ID_SHIFT)
-                | (workerId << ORDER_WORKER_ID_SHIFT)
-                | (orderSequence << ORDER_GENE_BITS)
-                | userGene;
-    }
-
-    private long getOrderBase() {
-        long timestamp = timeGen();
-        if (timestamp < lastOrderTimestamp) {
-            long offset = lastOrderTimestamp - timestamp;
-            throw new IllegalStateException(String.format(
-                    "Clock moved backwards. Refusing to generate order number for %d milliseconds", offset));
-        }
-        if (timestamp == lastOrderTimestamp) {
-            orderSequence = (orderSequence + 1) & ORDER_SEQUENCE_MASK;
-            if (orderSequence == 0L) {
-                timestamp = tilNextMillis(lastOrderTimestamp);
-            }
-        } else {
-            orderSequence = 0L;
-        }
-        lastOrderTimestamp = timestamp;
-        return timestamp;
-    }
-
-    private void validateRouteCapacity(long tableCount, long databaseCount) {
-        Assert.isTrue(tableCount > 0 && databaseCount > 0, "sharding counts must be positive");
-        Assert.isTrue(isPowerOfTwo(tableCount) && isPowerOfTwo(databaseCount),
-                "sharding counts must be powers of two");
-        Assert.isTrue(tableCount * databaseCount <= (1L << ORDER_GENE_BITS),
-                "total sharding count exceeds the 6-bit route gene capacity");
-    }
-
-    private boolean isPowerOfTwo(long value) {
-        return (value & (value - 1)) == 0;
-    }
-
     protected long tilNextMillis(long lastTimestamp) {
         long timestamp = timeGen();
         while (timestamp <= lastTimestamp) {
@@ -289,10 +186,6 @@ public class SnowflakeIdGenerator {
         return (id>>22)+ BASIS_TIME;
     }
 
-    public static long parseOrderNumberTimestamp(long orderNumber) {
-        return (orderNumber >> ORDER_TIMESTAMP_SHIFT) + ORDER_BASIS_TIME;
-    }
-    
     public long log2N(long count) {
         return (long)(Math.log(count)/ Math.log(2));
     }

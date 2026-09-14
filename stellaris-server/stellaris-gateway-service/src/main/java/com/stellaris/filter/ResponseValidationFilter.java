@@ -62,7 +62,19 @@ public class ResponseValidationFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        // 只有需要 RSA 加密响应时才接管响应体。不加密时 checkResponseBody 原样返回，
+        // 但 ClientResponse -> bodyToMono(String) -> CachedBodyOutputMessage -> 重新写出
+        // 这一整圈仍会执行：多一次全量缓冲、一次字符串化和一次内容长度重算，纯属浪费。
+        if (!needsEncryption(exchange.getRequest())) {
+            return chain.filter(exchange);
+        }
         return chain.filter(exchange.mutate().response(decorate(exchange)).build());
+    }
+
+    private boolean needsEncryption(ServerHttpRequest request) {
+        String noVerify = request.getHeaders().getFirst(NO_VERIFY);
+        String encrypt = request.getHeaders().getFirst(ENCRYPT);
+        return !VERIFY_VALUE.equals(noVerify) && V2.equals(encrypt);
     }
 
    

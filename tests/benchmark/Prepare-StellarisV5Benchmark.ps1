@@ -1,6 +1,6 @@
 param(
-    [string]$MySqlContainer = 'stellaris-interview-mysql-1',
-    [string]$RedisContainer = 'stellaris-interview-redis-1',
+    [string]$MySqlContainer = 'stellaris-local-mysql-1',
+    [string]$RedisContainer = 'stellaris-local-redis-1',
     [string]$MySqlPassword = 'mysql123',
     [string]$RedisPassword = 'redis123',
     [string]$ProgramServiceBaseUrl = 'http://127.0.0.1:6086'
@@ -13,47 +13,31 @@ Assert-StellarisContainerRunning -Name $MySqlContainer
 Assert-StellarisContainerRunning -Name $RedisContainer
 
 $programId = $script:StellarisBenchmarkProgramId
-$saleShard = $programId % 16
-$ownerKey = "stellaris:{sale:$saleShard}:program:$programId`:seat:owner"
-$reservationKey = "stellaris:{sale:$saleShard}:program:$programId`:seat:reservation"
-
-function Get-RedisIntegerOrZero {
-    param([string[]]$Command)
-    $values = @(Invoke-StellarisRedisRaw -Container $RedisContainer -Password $RedisPassword -Command $Command)
-    if ($values.Count -eq 0 -or [string]::IsNullOrWhiteSpace("$($values[0])")) { return 0 }
-    return [int]$values[0]
+$open = Get-StellarisBenchmarkOrderCount -Container $MySqlContainer -Password $MySqlPassword -OrderStatus 1
+$paid = Get-StellarisBenchmarkOrderCount -Container $MySqlContainer -Password $MySqlPassword -OrderStatus 3
+if ($open -gt 0 -or $paid -gt 0) {
+    throw "Benchmark fixture has active or paid orders (open=$open paid=$paid). Use an isolated disposable database."
 }
 
-$ownerCount = Get-RedisIntegerOrZero -Command @('HLEN', $ownerKey)
-$reservationCount = Get-RedisIntegerOrZero -Command @('HLEN', $reservationKey)
-$openOrderCount = Get-StellarisBenchmarkOrderCount -Container $MySqlContainer -Password $MySqlPassword -OrderStatus 1
-if ($ownerCount -gt 0 -or $reservationCount -gt 0 -or $openOrderCount -gt 0) {
-    throw "Benchmark has active state (owners=$ownerCount reservations=$reservationCount openOrders=$openOrderCount). Run Cleanup-StellarisV5Benchmark.ps1 first."
-}
-
-Remove-StellarisDelayCancelTasksForProgram -ProgramId $programId `
-    -Container $RedisContainer -Password $RedisPassword | Out-Null
-
-$sqlPath = Join-Path $PSScriptRoot 'prepare-v5-test.sql'
-Invoke-StellarisMySqlScript -Container $MySqlContainer -Password $MySqlPassword -Path $sqlPath
+Remove-StellarisBenchmarkOrderHistory -Container $MySqlContainer -Password $MySqlPassword
+Invoke-StellarisMySqlScript -Container $MySqlContainer -Password $MySqlPassword -Path (Join-Path $PSScriptRoot 'prepare-v5-test.sql')
 Clear-StellarisV5BenchmarkRedis -Container $RedisContainer -Password $RedisPassword
 
-$csvPath = Join-Path (Resolve-Path (Join-Path $PSScriptRoot '..\jmeter\data')).Path 'v5-benchmark-users.csv'
-Export-StellarisBenchmarkUsersCsv -Path $csvPath
+$csv = Join-Path (Resolve-Path (Join-Path $PSScriptRoot '..\jmeter\data')).Path 'v5-benchmark-users.csv'
+Export-StellarisBenchmarkUsersCsv -Path $csv
 Invoke-StellarisBenchmarkPreheat -ProgramServiceBaseUrl $ProgramServiceBaseUrl
 
-$seatCount = Invoke-StellarisMySqlQuery -Container $MySqlContainer -Password $MySqlPassword `
-    -Query "SELECT COUNT(*) FROM stellaris_program_0.d_seat_0 WHERE program_id=$programId AND sell_status=1;" |
-    Select-Object -First 1
-$readyKey = "stellaris:{sale:$saleShard}:program:$programId`:seat:ready"
-$ready = Invoke-StellarisRedisRaw -Container $RedisContainer -Password $RedisPassword -Command @('EXISTS', $readyKey) |
-    Select-Object -First 1
+$categoryId = $script:StellarisBenchmarkCategoryId
+$tradeSeats = Invoke-StellarisMySqlQuery -Container $MySqlContainer -Password $MySqlPassword -Query "SELECT COUNT(*) FROM stellaris_trade.t_seat_inventory WHERE program_id=$programId AND ticket_category_id=$categoryId AND sell_status=1;" | Select-Object -First 1
+$saleShard = $programId % 16
+$readyKey = "stellaris:{sale:$saleShard}:program:$programId" + ':seat:ready'
+$ready = Invoke-StellarisRedisRaw -Container $RedisContainer -Password $RedisPassword -Command @('EXISTS', $readyKey) | Select-Object -First 1
 
 [pscustomobject]@{
     programId = $programId
-    categoryId = $script:StellarisBenchmarkCategoryId
-    availableSeats = [int]$seatCount
+    categoryId = $categoryId
+    tradeAvailableSeats = [int]$tradeSeats
     users = $script:StellarisBenchmarkUserCount
     redisReady = "$ready" -eq '1'
-    csv = $csvPath
+    csv = $csv
 } | Format-List

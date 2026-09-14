@@ -77,41 +77,49 @@ FROM tmp_stellaris_benchmark_numbers
 WHERE n < 10000;
 
 -- user_id % 4 routes as: 0=>db0/table0, 1=>db1/table0, 2=>db0/table1, 3=>db1/table1.
+-- d_user.mobile and d_user.id_number are physical cipher columns. These deterministic
+-- values are SM4/CBC/PKCS7 ciphertext produced with the local profile's configured
+-- key and IV, so rows inserted directly into the physical tables remain readable
+-- through ShardingSphere's logical datasource.
 INSERT INTO stellaris_user_0.d_user_0
     (id, name, rel_name, mobile, gender, password, email_status, email,
      rel_authentication_status, id_number, address, create_time, edit_time, status)
 SELECT @user_base + n, CONCAT('v5_test_', LPAD(n + 1, 6, '0')),
-       CONCAT('压测用户', LPAD(n + 1, 6, '0')), CONCAT('1399', LPAD(n, 7, '0')),
-       1, NULL, 0, NULL, 1, CONCAT('990000', LPAD(n, 12, '0')), '星演压测地址', NOW(), NOW(), 1
+       CONCAT('压测用户', LPAD(n + 1, 6, '0')), 'bbaa94b347dbf0753713b57863e79063',
+       1, NULL, 0, NULL, 1, '9b0cfb68a5380cf530ba66d5a5cb7bb5b68994c7836036fa168e50f5c377488d', '星演压测地址', NOW(), NOW(), 1
 FROM tmp_stellaris_benchmark_numbers WHERE n < 5000 AND MOD(@user_base + n, 4) = 0
-ON DUPLICATE KEY UPDATE name = VALUES(name), rel_name = VALUES(rel_name), edit_time = NOW(), status = 1;
+ON DUPLICATE KEY UPDATE name = VALUES(name), rel_name = VALUES(rel_name), mobile = VALUES(mobile),
+    id_number = VALUES(id_number), edit_time = NOW(), status = 1;
 
 INSERT INTO stellaris_user_1.d_user_0
     (id, name, rel_name, mobile, gender, password, email_status, email,
      rel_authentication_status, id_number, address, create_time, edit_time, status)
 SELECT @user_base + n, CONCAT('v5_test_', LPAD(n + 1, 6, '0')),
-       CONCAT('压测用户', LPAD(n + 1, 6, '0')), CONCAT('1399', LPAD(n, 7, '0')),
-       1, NULL, 0, NULL, 1, CONCAT('990000', LPAD(n, 12, '0')), '星演压测地址', NOW(), NOW(), 1
+       CONCAT('压测用户', LPAD(n + 1, 6, '0')), 'bbaa94b347dbf0753713b57863e79063',
+       1, NULL, 0, NULL, 1, '9b0cfb68a5380cf530ba66d5a5cb7bb5b68994c7836036fa168e50f5c377488d', '星演压测地址', NOW(), NOW(), 1
 FROM tmp_stellaris_benchmark_numbers WHERE n < 5000 AND MOD(@user_base + n, 4) = 1
-ON DUPLICATE KEY UPDATE name = VALUES(name), rel_name = VALUES(rel_name), edit_time = NOW(), status = 1;
+ON DUPLICATE KEY UPDATE name = VALUES(name), rel_name = VALUES(rel_name), mobile = VALUES(mobile),
+    id_number = VALUES(id_number), edit_time = NOW(), status = 1;
 
 INSERT INTO stellaris_user_0.d_user_1
     (id, name, rel_name, mobile, gender, password, email_status, email,
      rel_authentication_status, id_number, address, create_time, edit_time, status)
 SELECT @user_base + n, CONCAT('v5_test_', LPAD(n + 1, 6, '0')),
-       CONCAT('压测用户', LPAD(n + 1, 6, '0')), CONCAT('1399', LPAD(n, 7, '0')),
-       1, NULL, 0, NULL, 1, CONCAT('990000', LPAD(n, 12, '0')), '星演压测地址', NOW(), NOW(), 1
+       CONCAT('压测用户', LPAD(n + 1, 6, '0')), 'bbaa94b347dbf0753713b57863e79063',
+       1, NULL, 0, NULL, 1, '9b0cfb68a5380cf530ba66d5a5cb7bb5b68994c7836036fa168e50f5c377488d', '星演压测地址', NOW(), NOW(), 1
 FROM tmp_stellaris_benchmark_numbers WHERE n < 5000 AND MOD(@user_base + n, 4) = 2
-ON DUPLICATE KEY UPDATE name = VALUES(name), rel_name = VALUES(rel_name), edit_time = NOW(), status = 1;
+ON DUPLICATE KEY UPDATE name = VALUES(name), rel_name = VALUES(rel_name), mobile = VALUES(mobile),
+    id_number = VALUES(id_number), edit_time = NOW(), status = 1;
 
 INSERT INTO stellaris_user_1.d_user_1
     (id, name, rel_name, mobile, gender, password, email_status, email,
      rel_authentication_status, id_number, address, create_time, edit_time, status)
 SELECT @user_base + n, CONCAT('v5_test_', LPAD(n + 1, 6, '0')),
-       CONCAT('压测用户', LPAD(n + 1, 6, '0')), CONCAT('1399', LPAD(n, 7, '0')),
-       1, NULL, 0, NULL, 1, CONCAT('990000', LPAD(n, 12, '0')), '星演压测地址', NOW(), NOW(), 1
+       CONCAT('压测用户', LPAD(n + 1, 6, '0')), 'bbaa94b347dbf0753713b57863e79063',
+       1, NULL, 0, NULL, 1, '9b0cfb68a5380cf530ba66d5a5cb7bb5b68994c7836036fa168e50f5c377488d', '星演压测地址', NOW(), NOW(), 1
 FROM tmp_stellaris_benchmark_numbers WHERE n < 5000 AND MOD(@user_base + n, 4) = 3
-ON DUPLICATE KEY UPDATE name = VALUES(name), rel_name = VALUES(rel_name), edit_time = NOW(), status = 1;
+ON DUPLICATE KEY UPDATE name = VALUES(name), rel_name = VALUES(rel_name), mobile = VALUES(mobile),
+    id_number = VALUES(id_number), edit_time = NOW(), status = 1;
 
 INSERT INTO stellaris_user_0.d_ticket_user_0
     (id, user_id, rel_name, id_type, id_number, create_time, edit_time, status)

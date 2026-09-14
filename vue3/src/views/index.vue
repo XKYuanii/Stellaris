@@ -63,7 +63,7 @@ import {getcategoryType, getMainCategory} from '@/api/index'
 const categoryArr = ref([])
 const programList = ref([])
 const queryParams = ref({
-  "areaId": 0,
+  "areaId": null,
   "parentProgramCategoryIds": []
 })
 const programListVoList = ref([])

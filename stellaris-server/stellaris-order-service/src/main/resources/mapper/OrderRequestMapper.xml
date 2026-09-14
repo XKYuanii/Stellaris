@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.stellaris.mapper.OrderRequestMapper">
+    <insert id="acquire">
+        INSERT IGNORE INTO t_order_request
+        (reservation_id, program_id, user_id, request_id, order_number, request_fingerprint,
+         result_status, reject_code, created_at, updated_at)
+        VALUES
+        (#{reservationId}, #{programId}, #{userId}, #{requestId}, #{orderNumber}, #{requestFingerprint},
+         'PROCESSING', NULL, NOW(), NOW())
+    </insert>
+
+    <update id="markCreated">
+        UPDATE t_order_request
+        SET result_status = 'CREATED', reject_code = NULL, updated_at = NOW()
+        WHERE reservation_id = #{reservationId} AND result_status = 'PROCESSING'
+    </update>
+
+    <insert id="recordRejected">
+        INSERT IGNORE INTO t_order_request
+        (reservation_id, program_id, user_id, request_id, order_number, request_fingerprint,
+         result_status, reject_code, created_at, updated_at)
+        VALUES
+        (#{reservationId}, #{programId}, #{userId}, #{requestId}, #{orderNumber}, #{requestFingerprint},
+         'REJECTED', #{rejectCode}, NOW(), NOW())
+    </insert>
+</mapper>

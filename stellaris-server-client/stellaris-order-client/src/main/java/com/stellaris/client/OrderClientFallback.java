@@ -2,10 +2,12 @@ package com.stellaris.client;
 
 import com.stellaris.common.ApiResponse;
 import com.stellaris.dto.AccountOrderCountDto;
-import com.stellaris.dto.ReferenceOrderStateQueryDto;
+import com.stellaris.dto.SeatInventoryInitializeDto;
+import com.stellaris.dto.SeatInventoryCountDto;
+import com.stellaris.dto.SeatInventoryQueryDto;
+import com.stellaris.dto.SeatInventorySnapshotDto;
 import com.stellaris.enums.BaseCode;
 import com.stellaris.vo.AccountOrderCountVo;
-import com.stellaris.vo.ReferenceOrderStateVo;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -24,12 +26,17 @@ public class OrderClientFallback implements OrderClient {
     }
     
     @Override
-    public ApiResponse<Void> reloadRouteMappingCache() {
+    public ApiResponse<Boolean> initializeSeatInventory(SeatInventoryInitializeDto dto) {
         return ApiResponse.error(BaseCode.SYSTEM_ERROR);
     }
 
     @Override
-    public ApiResponse<List<ReferenceOrderStateVo>> referenceStateBatch(ReferenceOrderStateQueryDto dto) {
+    public ApiResponse<List<SeatInventorySnapshotDto>> currentSeatInventory(SeatInventoryQueryDto dto) {
+        return ApiResponse.error(BaseCode.SYSTEM_ERROR);
+    }
+
+    @Override
+    public ApiResponse<Long> availableSeatCount(SeatInventoryCountDto dto) {
         return ApiResponse.error(BaseCode.SYSTEM_ERROR);
     }
 }

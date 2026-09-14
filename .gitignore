@@ -54,7 +54,21 @@ CLAUDE.md
 output/
 tmp/
 .codex_tmp/
+.codex-runtime/
 tests/**/results/
+
+# Personal interview preparation and local review archives
+.private-interview-archive/
+/docs/*面经*
+/docs/*面试*
+/docs/*简历*
+/docs/*速成*
+/docs/*学习人话版*
+/docs/*完整设计与掌握手册*
+/docs/INTERVIEW_*
+/docs/RESUME_*
+/interview-deliverables/
+/tools/build_interview_manual.py
 
 ### Local tools ###
 ngrok.exe

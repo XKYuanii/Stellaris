@@ -1,20 +1,17 @@
 package com.stellaris.controller;
 
 import com.stellaris.common.ApiResponse;
-import com.stellaris.dto.AccountOrderCountDto;
 import com.stellaris.dto.OrderCancelDto;
 import com.stellaris.dto.OrderGetDto;
 import com.stellaris.dto.OrderListDto;
+import com.stellaris.dto.OrderMaterializationQueryDto;
 import com.stellaris.dto.OrderPayCheckDto;
 import com.stellaris.dto.OrderPayDto;
-import com.stellaris.dto.ReferenceOrderStateQueryDto;
 import com.stellaris.security.CurrentRequestIdentity;
 import com.stellaris.service.OrderService;
-import com.stellaris.service.reference.ReferenceOrderStateQueryService;
-import com.stellaris.vo.AccountOrderCountVo;
 import com.stellaris.vo.OrderGetVo;
 import com.stellaris.vo.OrderListVo;
-import com.stellaris.vo.ReferenceOrderStateVo;
+import com.stellaris.vo.OrderMaterializationVo;
 import com.stellaris.vo.OrderPayCheckVo;
 import com.stellaris.vo.PayResultVo;
 import io.swagger.v3.oas.annotations.Operation;
@@ -43,16 +40,14 @@ public class OrderController {
     private OrderService orderService;
     
     @Autowired
-    private ReferenceOrderStateQueryService referenceOrderStateQueryService;
-
-    @Autowired
     private CurrentRequestIdentity currentRequestIdentity;
     
     
-    @Operation(summary = "v5 对账内部：批量查询订单状态")
-    @PostMapping("/reference/reconciliation/state/batch")
-    public ApiResponse<List<ReferenceOrderStateVo>> referenceStateBatch(@RequestBody ReferenceOrderStateQueryDto dto) {
-        return ApiResponse.ok(referenceOrderStateQueryService.query(dto));
+    @Operation(summary = "查询异步订单落地结果")
+    @PostMapping("/materialization")
+    public ApiResponse<OrderMaterializationVo> materialization(
+            @Valid @RequestBody OrderMaterializationQueryDto dto) {
+        return ApiResponse.ok(orderService.materialization(dto, currentRequestIdentity.requireUserId()));
     }
     
     @Operation(summary  = "订单支付")
@@ -83,12 +78,6 @@ public class OrderController {
     @PostMapping(value = "/get")
     public ApiResponse<OrderGetVo> get(@Valid @RequestBody OrderGetDto orderGetDto) {
         return ApiResponse.ok(orderService.get(orderGetDto, currentRequestIdentity.requireUserId()));
-    }
-    
-    @Operation(summary  = "账户下某个节目的订单数量(不提供给前端调用，只允许内部program服务调用)")
-    @PostMapping(value = "/account/order/count")
-    public ApiResponse<AccountOrderCountVo> accountOrderCount(@Valid @RequestBody AccountOrderCountDto accountOrderCountDto) {
-        return ApiResponse.ok(orderService.accountOrderCount(accountOrderCountDto));
     }
     
     @Operation(summary  = "订单详情取消")

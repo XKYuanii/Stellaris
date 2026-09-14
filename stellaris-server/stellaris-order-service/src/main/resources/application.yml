@@ -30,8 +30,17 @@ spring:
       generator:
         WRITE_NUMBERS_AS_STRINGS: true
   datasource:
-    driver-class-name: org.apache.shardingsphere.driver.ShardingSphereDriver
-    url: jdbc:shardingsphere:classpath:shardingsphere-order-${spring.profiles.active}.yaml
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${STELLARIS_TRADE_DB_URL:jdbc:mysql://127.0.0.1:3306/stellaris_trade?useUnicode=true&characterEncoding=UTF-8&rewriteBatchedStatements=true&allowMultiQueries=true&serverTimezone=Asia/Shanghai&autoReconnect=true}
+    username: ${STELLARIS_TRADE_DB_USERNAME:root}
+    password: ${STELLARIS_TRADE_DB_PASSWORD:mysql123}
+    hikari:
+      minimum-idle: 15
+      maximum-pool-size: 80
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      leak-detection-threshold: 60000
   data:
     redis:
       database: 0
@@ -39,13 +48,32 @@ spring:
       port: ${STELLARIS_REDIS_PORT:6380}
       password: redis123
       timeout: 5000                     # 连接超时时间(5秒)
-      jedis:
+      lettuce:
         pool:
           max-active: 600               # 最大活跃连接数(订单服务负载高)
           max-idle: 120                 # 最大空闲连接数
           min-idle: 30                  # 最小空闲连接数
           max-wait: 3000                # 最大等待时间(3秒)
   cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connect-timeout: 1000
+            read-timeout: 3000
+          # 支付事实批查可能包含两波并行渠道查单，单独放宽而不拖长其他内部调用。
+          stellaris-pay-service:
+            connect-timeout: 1000
+            read-timeout: 20000
+      okhttp:
+        enabled: true
+      compression:
+        request:
+          enabled: true
+          mime-types: text/xml,application/xml,application/json
+          min-request-size: 512
+        response:
+          enabled: true
     nacos:
       discovery:
         server-addr: 127.0.0.1:8848
@@ -53,35 +81,12 @@ spring:
         ip: ${STELLARIS_NACOS_DISCOVERY_IP:127.0.0.1}
         username: nacos
         password: nacos
-  kafka:
-    bootstrap-servers: ${STELLARIS_KAFKA_SERVERS:127.0.0.1:9092}
-    admin:
-      fail-fast: true
-      modify-topic-configs: true
-    producer:
-      acks: all
-      retries: 10
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
-      properties:
-        enable.idempotence: true
-        max.in.flight.requests.per.connection: 5
-        delivery.timeout.ms: 30000
-        request.timeout.ms: 10000
-    consumer:
-      #默认的消费组ID
-      group-id: create_order_data
-      #是否自动提交offset
-      enable-auto-commit: false
-      # Redis Stream 记录在 Kafka broker ACK 后才确认并删除。新消费组必须从
-      # Kafka 已有记录开始消费，否则切换 group-id 时可能跳过已经转发的订单事件。
-      auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-    listener:
-      ack-mode: manual_immediate
-    topic: create_order
-      
+  task:
+    scheduling:
+      # 五个业务恢复任务各保留一个调度槽；Stream 指标另用专用调度器。
+      pool:
+        size: 5
+      thread-name-prefix: order-scheduling-
 mybatis-plus:
   mapper-locations: classpath:mapper/*.xml
   global-config:
@@ -91,22 +96,6 @@ mybatis-plus:
       logic-not-delete-value: 1
   configuration:
     local-cache-scope: statement
-feign:
-  sentinel:
-    enabled: false
-  hystrix:
-    enabled: true
-  httpclient:
-    enabled: false
-  okhttp:
-    enabled: true
-  compression:
-    request:
-      enabled: true
-      mime-types: text/xml,application/xml,application/json
-      min-request-size: 512
-    response:
-      enabled: true
 management:
   metrics:
     tags:
@@ -133,47 +122,61 @@ stellaris:
   management:
     operations:
       enabled: false
-delay:
-  queue:
-    corePoolSize: 20                    # 核心线程数(订单服务负载更高)
-    maximumPoolSize: 40                 # 最大线程数
-    isolationRegionCount: 8             # 隔离区域数量(提升并发)
-
-order-create-consumer:
-  retry:
-    interval-ms: 1000
-    max-attempts: 3
-  dlt-audit-retry-interval-ms: 5000
-
-# v5 未支付取消：生产在订单本地事务 afterCommit 后写入 pending；DB 扫描为可靠兜底。
-delay-cancel-lease:
+# Redis Lua 同事务写入的建单事件由订单服务直接消费。
+order-stream:
   enabled: true
-  timeout-ms: 900000
-  fixed-delay-ms: 1000
-  db-scan-fixed-delay-ms: 60000
-  lease-ms: 120000
-  max-attempts: 10
-  retry-backoff-ms: 5000
+  group: stellaris-order-service
+  # 与 Program 准入 Lua 共用同一环境变量，避免监控阈值和实际拒绝阈值漂移。
+  max-stream-length: ${STELLARIS_ORDER_STREAM_MAX_LENGTH:100000}
+  batch-size: 32
+  block-ms: 1000
+  claim-idle-ms: 60000
+  recovery-fixed-delay-ms: 10000
+  # 独立调度，数据库故障拖慢 PEL 重领时仍持续刷新容量与消息年龄。
+  observation-fixed-delay-ms: 10000
+  error-backoff-ms: 1000
+  shutdown-timeout-ms: 10000
 
-# v5 支付/取消后的库存迁移可靠命令：订单状态与事件同事务提交，节目侧失败后异步重试。
+# v5 支付/取消后的 Redis 状态同步命令：订单状态与事件同事务提交，同步失败后异步重试。
 reservation-transition:
   fixed-delay-ms: 5000
   retry-backoff-ms: 5000
   processing-timeout-ms: 60000
-  max-attempts: 20
+  # 0 表示不自动进入 DEAD；订单终态同步必须持续收敛，人工停重试需显式操作。
+  max-attempts: 0
+  batch-size: 100
+  executor:
+    core-size: 4
+    max-size: 16
+    queue-capacity: 1000
+
+payment-reconciliation:
+  fixed-delay-ms: 10000
+  retry-backoff-ms: 10000
+  processing-timeout-ms: 60000
+  # 每轮最多 claim 100 条，再按 20 条拆分远程请求。这样不突破 Pay 的单批渠道查单上限，
+  # 同时把 2000 条 WAITING 事件的理论全量扫描周期从约 17 分钟降到约 3 分钟。
+  batch-size: 100
+  remote-batch-size: 20
+
+reservation-expiration:
+  fixed-delay-ms: 10000
+  # 留出 Stream 消费和数据库事务的正常在途时间，避免把刚过期的在途消息误判为孤儿。
+  grace-ms: 60000
+  # 单条恢复失败时更新 ZSET 分数，避免永久失败项占满每一页的队头。
+  retry-backoff-ms: 30000
   batch-size: 100
 
-kafka-topic:
-  create-order:
-    partitions: ${STELLARIS_CREATE_ORDER_PARTITIONS:3}
-    replicas: ${STELLARIS_CREATE_ORDER_REPLICAS:1}
-    min-insync-replicas: ${STELLARIS_CREATE_ORDER_MIN_ISR:1}
-
 order:
-  reconciliation:
-    enabled: true
-    cron: "0 0/3 * * * ?"
-    lookback-minutes: 3
+  expiry:
+    fixed-delay-ms: 5000
+    batch-size: 100
+    max-batches-per-run: 20
+    # 失败订单持久化延期，避免永久失败的 100 条记录阻塞后续关单。
+    retry-backoff-ms: 60000
+    # 多实例按订单主键取模分区。部署 N 个实例时分别配置 index=0..N-1；单实例保持默认值。
+    partition-count: ${STELLARIS_ORDER_EXPIRY_PARTITION_COUNT:1}
+    partition-index: ${STELLARIS_ORDER_EXPIRY_PARTITION_INDEX:0}
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
@@ -199,23 +202,3 @@ knife4j:
     language: zh_cn
     enable-version: true
     enable-swagger-models: true
-    
-seata:
-  enabled: true                                 # 启动事务中间件
-  application-id: order-service
-  data-source-proxy-mode: AT                    # 事务模式，默认AT
-  enable-auto-data-source-proxy: true           # 开启数据源自动代理
-  transport:
-    enable-client-batch-send-request: true      # 客户端事务消息请求是否批量合并发送，默认true，false单条发送
-    enable-rm-client-batch-send-request: true   # RM(资源管理器)客户端会将多个分支事务的请求批量发送给 TC（Transaction Coordinator，事务协调器），提高事务处理效率
-  tx-service-group: order-service # 事务组名称(可自定义)
-  service:
-    disable-global-transaction: false
-    enable-degrade: false
-    # 事务组映射到组列表处理
-    vgroup-mapping:
-      # 事务组名称作为映射k
-      order-service: order-service-map
-    grouplist:
-      # 映射值作为组k，交给seata服务处理
-      order-service-map: 127.0.0.1:8091    

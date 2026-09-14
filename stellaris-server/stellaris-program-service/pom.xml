@@ -73,11 +73,6 @@
         </dependency>
         <dependency>
             <groupId>com.stellaris</groupId>
-            <artifactId>stellaris-service-delay-queue-framework</artifactId>
-            <version>${revision}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.stellaris</groupId>
             <artifactId>stellaris-program-client</artifactId>
             <version>${revision}</version>
         </dependency>
@@ -183,10 +178,6 @@
             <artifactId>sentinel-datasource-nacos</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.springframework.kafka</groupId>
-            <artifactId>spring-kafka</artifactId>
-        </dependency>
-        <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-loadbalancer</artifactId>
         </dependency>
@@ -196,13 +187,18 @@
             <version>${opencsv.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.stellaris</groupId>
-            <artifactId>stellaris-customize-client</artifactId>
-            <version>${revision}</version>
-        </dependency>
-        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

@@ -24,16 +24,11 @@ import com.stellaris.dto.ProgramDataPreheatDto;
 import com.stellaris.dto.ProgramGetDto;
 import com.stellaris.dto.ProgramInvalidDto;
 import com.stellaris.dto.ProgramListDto;
-import com.stellaris.dto.ProgramOperateDataDto;
 import com.stellaris.dto.ProgramPageListDto;
 import com.stellaris.dto.ProgramRecommendListDto;
-import com.stellaris.dto.ProgramResetExecuteDto;
 import com.stellaris.dto.ProgramSearchDto;
-import com.stellaris.dto.ReduceRemainNumberDto;
-import com.stellaris.dto.TicketCategoryCountDto;
 import com.stellaris.dto.TicketUserListDto;
 import com.stellaris.entity.Program;
-import com.stellaris.entity.OrderInventoryOperation;
 import com.stellaris.entity.ProgramCategory;
 import com.stellaris.entity.ProgramGroup;
 import com.stellaris.entity.ProgramJoinShowTime;
@@ -44,7 +39,6 @@ import com.stellaris.entity.TicketCategoryAggregate;
 import com.stellaris.enums.BaseCode;
 import com.stellaris.enums.BusinessStatus;
 import com.stellaris.enums.CompositeCheckType;
-import com.stellaris.enums.SellStatus;
 import com.stellaris.exception.StellarisFrameException;
 import com.stellaris.handler.BloomFilterHandler;
 import com.stellaris.initialize.impl.composite.CompositeContainer;
@@ -52,7 +46,6 @@ import com.stellaris.mapper.ProgramCategoryMapper;
 import com.stellaris.mapper.ProgramGroupMapper;
 import com.stellaris.mapper.ProgramMapper;
 import com.stellaris.mapper.ProgramShowTimeMapper;
-import com.stellaris.mapper.OrderInventoryOperationMapper;
 import com.stellaris.mapper.SeatMapper;
 import com.stellaris.mapper.TicketCategoryMapper;
 import com.stellaris.page.PageUtil;
@@ -69,7 +62,7 @@ import com.stellaris.service.reference.ReferenceSeatInventoryService;
 import com.stellaris.service.constant.ProgramTimeType;
 import com.stellaris.service.es.ProgramEs;
 import com.stellaris.service.lua.ProgramDelCacheData;
-import com.stellaris.service.tool.TokenExpireManager;
+import com.stellaris.service.reference.SeatReservationKeys;
 import com.stellaris.servicelock.LockType;
 import com.stellaris.servicelock.annotion.ServiceLock;
 import com.stellaris.threadlocal.BaseParameterHolder;
@@ -113,8 +106,6 @@ import static com.stellaris.core.DistributedLockConstants.GET_PROGRAM_LOCK;
 import static com.stellaris.core.DistributedLockConstants.PROGRAM_GROUP_LOCK;
 import static com.stellaris.core.DistributedLockConstants.PROGRAM_LOCK;
 import static com.stellaris.core.DistributedLockConstants.REFERENCE_PREHEAT;
-import static com.stellaris.core.RepeatExecuteLimitConstants.PAY_OR_CANCEL_PROGRAM_ORDER;
-import static com.stellaris.core.RepeatExecuteLimitConstants.REDUCE_REMAIN_NUMBER;
 import static com.stellaris.util.DateUtils.FORMAT_DATE;
 
 /**
@@ -126,10 +117,6 @@ import static com.stellaris.util.DateUtils.FORMAT_DATE;
 @Service
 public class ProgramService extends ServiceImpl<ProgramMapper, Program> {
 
-    /** 仅供本地演示重置数据；正常预热绝不能改写已售/锁定座位。 */
-    @Value("${program.demo-reset-enabled:false}")
-    private boolean demoResetEnabled;
-    
     @Autowired
     private UidGenerator uidGenerator;
     
@@ -148,9 +135,6 @@ public class ProgramService extends ServiceImpl<ProgramMapper, Program> {
     @Autowired
     private TicketCategoryMapper ticketCategoryMapper;
 
-    @Autowired
-    private OrderInventoryOperationMapper orderInventoryOperationMapper;
-    
     @Autowired
     private SeatMapper seatMapper;
     
@@ -205,9 +189,6 @@ public class ProgramService extends ServiceImpl<ProgramMapper, Program> {
     
     @Autowired
     private CompositeContainer compositeContainer;
-    
-    @Autowired
-    private TokenExpireManager tokenExpireManager;
     
     @Autowired
     private ProgramDelCacheData programDelCacheData;
@@ -555,12 +536,9 @@ public class ProgramService extends ServiceImpl<ProgramMapper, Program> {
     }
     
     public ProgramVo simpleGetByIdMultipleCache(Long programId){
-        ProgramVo programVoCache = localCacheProgram.getCache(RedisKeyBuild.createRedisKey(RedisKeyManage.PROGRAM, 
-                programId).getRelKey());
-        if (Objects.nonNull(programVoCache)) {
-            return programVoCache;
-        }
-        return redisCache.get(RedisKeyBuild.createRedisKey(RedisKeyManage.PROGRAM, programId), ProgramVo.class);
+        RedisKeyBuild redisKey = RedisKeyBuild.createRedisKey(RedisKeyManage.PROGRAM, programId);
+        return localCacheProgram.getCache(redisKey.getRelKey(),
+                ignored -> redisCache.get(redisKey, ProgramVo.class));
     }
     
     public ProgramVo simpleGetProgramAndShowMultipleCache(Long programId){
@@ -648,178 +626,6 @@ public class ProgramService extends ServiceImpl<ProgramMapper, Program> {
                         ticketCategory -> ticketCategory, (v1, v2) -> v2));
     }
     
-    @RepeatExecuteLimit(name = REDUCE_REMAIN_NUMBER,keys = {"#reduceRemainNumberDto.programId","#reduceRemainNumberDto.seatIdList"})
-    @Transactional(rollbackFor = Exception.class)
-    public Boolean operateSeatLockAndTicketCategoryRemainNumber(ReduceRemainNumberDto reduceRemainNumberDto){
-        OrderInventoryOperation existingOperation = orderInventoryOperationMapper.selectOne(
-                Wrappers.lambdaQuery(OrderInventoryOperation.class)
-                        .eq(OrderInventoryOperation::getProgramId, reduceRemainNumberDto.getProgramId())
-                        .eq(OrderInventoryOperation::getOrderNumber, reduceRemainNumberDto.getOrderNumber()));
-        if (Objects.nonNull(existingOperation)) {
-            // Feign 响应丢失、Kafka 重投等场景直接返回成功，不能重复锁座和扣减余票。
-            if (reduceRemainNumberDto.getEventId() != null && existingOperation.getEventId() != null
-                    && !Objects.equals(existingOperation.getEventId(), reduceRemainNumberDto.getEventId())) {
-                throw new StellarisFrameException(BaseCode.PARAMETER_ERROR);
-            }
-            return true;
-        }
-        // 只拒绝“首次”落库的过期 reservation。若库存操作已经提交，重试必须继续补建订单。
-        if (reduceRemainNumberDto.getIntentId() != null && !reduceRemainNumberDto.getIntentId().isBlank()
-                && (reduceRemainNumberDto.getReservationExpireTime() == null
-                || !reduceRemainNumberDto.getReservationExpireTime().after(DateUtils.now()))) {
-            throw new StellarisFrameException(BaseCode.SEAT_SOLD);
-        }
-        List<TicketCategoryCountDto> ticketCategoryCountDtoList = reduceRemainNumberDto.getTicketCategoryCountDtoList();
-        List<Long> seatIdList = reduceRemainNumberDto.getSeatIdList();
-        if (seatIdList == null || seatIdList.isEmpty()
-                || seatIdList.stream().distinct().count() != seatIdList.size()) {
-            throw new StellarisFrameException(BaseCode.PARAMETER_ERROR);
-        }
-        LambdaQueryWrapper<Seat> seatLambdaQueryWrapper = 
-                Wrappers.lambdaQuery(Seat.class)
-                        .eq(Seat::getProgramId,reduceRemainNumberDto.getProgramId())
-                        .in(Seat::getId, seatIdList);
-        //查询座位，进行相关验证
-        List<Seat> seatList = seatMapper.selectList(seatLambdaQueryWrapper);
-        if (CollectionUtil.isEmpty(seatList)) {
-            throw new StellarisFrameException(BaseCode.SEAT_NOT_EXIST);
-        }
-        if (seatList.size() != seatIdList.size()) {
-            throw new StellarisFrameException(BaseCode.SEAT_UPDATE_REL_COUNT_NOT_EQUAL_PRESET_COUNT);
-        }
-        for (Seat seat : seatList) {
-            if (!Objects.equals(seat.getSellStatus(), SellStatus.NO_SOLD.getCode())) {
-                throw new StellarisFrameException(BaseCode.SEAT_IS_NOT_NOT_SOLD);
-            }
-        }
-        //修改座位状态
-        LambdaUpdateWrapper<Seat> seatLambdaUpdateWrapper = 
-                Wrappers.lambdaUpdate(Seat.class)
-                        .eq(Seat::getProgramId,reduceRemainNumberDto.getProgramId())
-                        .in(Seat::getId, seatIdList)
-                        .eq(Seat::getSellStatus, SellStatus.NO_SOLD.getCode())
-                        .set(Seat::getSellStatus, reduceRemainNumberDto.getSellStatus())
-                        .setSql("seat_version = COALESCE(seat_version, 0) + 1");
-        if (reduceRemainNumberDto.getIntentId() != null && !reduceRemainNumberDto.getIntentId().isBlank()) {
-            seatLambdaUpdateWrapper.isNull(Seat::getReservationId)
-                    .set(Seat::getReservationId, reduceRemainNumberDto.getIntentId());
-        }
-        int updatedSeats = seatMapper.update(null,seatLambdaUpdateWrapper);
-        if (updatedSeats != seatIdList.size()) {
-            throw new StellarisFrameException(BaseCode.SEAT_UPDATE_REL_COUNT_NOT_EQUAL_PRESET_COUNT);
-        }
-        
-        int updateRemainNumberCount = 0;
-        for (TicketCategoryCountDto ticketCategoryCountDto : ticketCategoryCountDtoList) {
-            //修改余票
-            updateRemainNumberCount = updateRemainNumberCount + ticketCategoryMapper.reduceRemainNumber(
-                    ticketCategoryCountDto.getCount(), ticketCategoryCountDto.getTicketCategoryId(),
-                    reduceRemainNumberDto.getProgramId());
-        }
-        if (updateRemainNumberCount != ticketCategoryCountDtoList.size()) {
-            throw new StellarisFrameException(BaseCode.UPDATE_TICKET_CATEGORY_COUNT_NOT_CORRECT);
-        }
-
-        // 与座位、票档库存处于同一本地事务；事务提交后即使响应丢失，重试也能识别为已处理。
-        Date now = DateUtils.now();
-        OrderInventoryOperation operation = new OrderInventoryOperation();
-        operation.setId(uidGenerator.getUid());
-        operation.setOrderNumber(reduceRemainNumberDto.getOrderNumber());
-        operation.setEventId(reduceRemainNumberDto.getEventId());
-        operation.setProgramId(reduceRemainNumberDto.getProgramId());
-        operation.setCreateTime(now);
-        operation.setEditTime(now);
-        operation.setStatus(1);
-        orderInventoryOperationMapper.insert(operation);
-        return true;
-    }
-
-    /**
-     * 到期清理的保守保护：只要节目库已经出现该 reservation 的 LOCK 座位，
-     * 清理任务就不能仅凭订单服务暂时查不到订单而释放 Redis 预订。
-     */
-    public boolean hasLockedReservation(Long programId, String reservationId) {
-        if (programId == null || reservationId == null || reservationId.isBlank()) {
-            return false;
-        }
-        Long count = seatMapper.selectCount(Wrappers.lambdaQuery(Seat.class)
-                .eq(Seat::getProgramId, programId)
-                .eq(Seat::getReservationId, reservationId)
-                .eq(Seat::getSellStatus, SellStatus.LOCK.getCode()));
-        return count != null && count > 0;
-    }
-    
-    @RepeatExecuteLimit(name = PAY_OR_CANCEL_PROGRAM_ORDER,keys = {"#programOperateDataDto.programId","#programOperateDataDto.seatIdList"})
-    @Transactional(rollbackFor = Exception.class)
-    public Boolean operateProgramData(ProgramOperateDataDto programOperateDataDto){
-        List<Long> seatIdList = programOperateDataDto.getSeatIdList();
-        if (seatIdList == null || seatIdList.isEmpty()
-                || seatIdList.stream().distinct().count() != seatIdList.size()) {
-            throw new StellarisFrameException(BaseCode.PARAMETER_ERROR);
-        }
-        LambdaQueryWrapper<Seat> seatLambdaQueryWrapper =
-                Wrappers.lambdaQuery(Seat.class)
-                        .eq(Seat::getProgramId,programOperateDataDto.getProgramId())
-                        .in(Seat::getId, seatIdList);
-        List<Seat> seatList = seatMapper.selectList(seatLambdaQueryWrapper);
-        if (CollectionUtil.isEmpty(seatList)) {
-            throw new StellarisFrameException(BaseCode.SEAT_NOT_EXIST);
-        }
-        if (seatList.size() != seatIdList.size()) {
-            throw new StellarisFrameException(BaseCode.SEAT_UPDATE_REL_COUNT_NOT_EQUAL_PRESET_COUNT);
-        }
-        //座位的操作状态只能是售卖或者未售卖
-        if (!Objects.equals(programOperateDataDto.getSellStatus(),SellStatus.SOLD.getCode()) && 
-                !Objects.equals(programOperateDataDto.getSellStatus(),SellStatus.NO_SOLD.getCode())) {
-            throw new StellarisFrameException(BaseCode.SEAT_OPERATE_IS_NOT_NOT_SOLD_OR_SOLD);
-        }
-        if (programOperateDataDto.getIntentId() == null
-                || programOperateDataDto.getIntentId().isBlank()) {
-            throw new StellarisFrameException(BaseCode.PARAMETER_ERROR);
-        }
-        boolean releasing = Objects.equals(programOperateDataDto.getSellStatus(), SellStatus.NO_SOLD.getCode());
-        boolean allAtTarget = seatList.stream().allMatch(seat ->
-                Objects.equals(seat.getSellStatus(), programOperateDataDto.getSellStatus())
-                        && (releasing && seat.getReservationId() == null
-                        || !releasing && Objects.equals(seat.getReservationId(), programOperateDataDto.getIntentId())));
-        if (allAtTarget) {
-            return true;
-        }
-        for (Seat seat : seatList) {
-            if (!Objects.equals(seat.getSellStatus(), SellStatus.LOCK.getCode())
-                    || !Objects.equals(seat.getReservationId(), programOperateDataDto.getIntentId())) {
-                throw new StellarisFrameException(BaseCode.SEAT_IS_NOT_NOT_LOCK);
-            }
-        }
-        LambdaUpdateWrapper<Seat> terminalUpdate = Wrappers.lambdaUpdate(Seat.class)
-                .eq(Seat::getProgramId, programOperateDataDto.getProgramId())
-                .in(Seat::getId, seatIdList)
-                .eq(Seat::getSellStatus, SellStatus.LOCK.getCode())
-                .eq(Seat::getReservationId, programOperateDataDto.getIntentId())
-                .set(Seat::getSellStatus, programOperateDataDto.getSellStatus())
-                .setSql("seat_version = COALESCE(seat_version, 0) + 1");
-        if (releasing) {
-            terminalUpdate.set(Seat::getReservationId, null);
-        }
-        int terminalUpdated = seatMapper.update(null, terminalUpdate);
-        if (terminalUpdated != seatIdList.size()) {
-            throw new StellarisFrameException(BaseCode.SEAT_UPDATE_REL_COUNT_NOT_EQUAL_PRESET_COUNT);
-        }
-        if (releasing) {
-            List<TicketCategoryCountDto> ticketCategoryCountDtoList = programOperateDataDto.getTicketCategoryCountDtoList();
-            int updateRemainNumberCount = 0;
-            for (TicketCategoryCountDto ticketCategoryCountDto : ticketCategoryCountDtoList) {
-                updateRemainNumberCount = updateRemainNumberCount + ticketCategoryMapper.increaseRemainNumber(
-                        ticketCategoryCountDto.getCount(), ticketCategoryCountDto.getTicketCategoryId(),
-                        programOperateDataDto.getProgramId());
-            }
-            if (updateRemainNumberCount != ticketCategoryCountDtoList.size()) {
-                throw new StellarisFrameException(BaseCode.UPDATE_TICKET_CATEGORY_COUNT_NOT_CORRECT);
-            }
-        }
-        return true;
-    }
-    
     private ProgramVo createProgramVo(Long programId){
         ProgramVo programVo = new ProgramVo();
         Program program = 
@@ -901,7 +707,7 @@ public class ProgramService extends ServiceImpl<ProgramMapper, Program> {
                 if (!redisCache.hasKey(RedisKeyBuild.createRedisKey(RedisKeyManage.TICKET_USER_LIST,userId))) {
                     TicketUserListDto ticketUserListDto = new TicketUserListDto();
                     ticketUserListDto.setUserId(Long.parseLong(userId));
-                    ApiResponse<List<TicketUserVo>> apiResponse = userClient.list(ticketUserListDto);
+                    ApiResponse<List<TicketUserVo>> apiResponse = userClient.list(userId, ticketUserListDto);
                     if (Objects.equals(apiResponse.getCode(), BaseCode.SUCCESS.getCode())) {
                         Optional.ofNullable(apiResponse.getData()).filter(CollectionUtil::isNotEmpty)
                                 .ifPresent(ticketUserVoList -> redisCache.set(RedisKeyBuild.createRedisKey(
@@ -930,17 +736,16 @@ public class ProgramService extends ServiceImpl<ProgramMapper, Program> {
         }
         BusinessThreadPool.execute(() -> {
             try {
-                if (!redisCache.hasKey(RedisKeyBuild.createRedisKey(RedisKeyManage.ACCOUNT_ORDER_COUNT,userId,programId))) {
+                String accountCountKey = SeatReservationKeys.accountCount(programId);
+                if (!redisCache.getInstance().opsForHash().hasKey(accountCountKey, userId)) {
                     AccountOrderCountDto accountOrderCountDto = new AccountOrderCountDto();
                     accountOrderCountDto.setUserId(Long.parseLong(userId));
                     accountOrderCountDto.setProgramId(programId);
                     ApiResponse<AccountOrderCountVo> apiResponse = orderClient.accountOrderCount(accountOrderCountDto);
                     if (Objects.equals(apiResponse.getCode(), BaseCode.SUCCESS.getCode())) {
                         Optional.ofNullable(apiResponse.getData())
-                                .ifPresent(accountOrderCountVo -> redisCache.set(
-                                        RedisKeyBuild.createRedisKey(RedisKeyManage.ACCOUNT_ORDER_COUNT,userId,programId),
-                                        accountOrderCountVo.getCount(), tokenExpireManager.getTokenExpireTime() + 1,
-                                        TimeUnit.MINUTES));
+                                .ifPresent(accountOrderCountVo -> redisCache.getInstance().opsForHash()
+                                        .put(accountCountKey, userId, String.valueOf(accountOrderCountVo.getCount())));
                     }else {
                         log.warn("orderClient.accountOrderCount 调用失败 apiResponse : {}",JSON.toJSONString(apiResponse));
                     }
@@ -960,53 +765,6 @@ public class ProgramService extends ServiceImpl<ProgramMapper, Program> {
         return programCategoryService.getProgramCategory(programCategoryId);
     }
     
-    @Transactional(rollbackFor = Exception.class)
-    public Boolean resetExecute(ProgramResetExecuteDto programResetExecuteDto) {
-        if (!demoResetEnabled) {
-            throw new IllegalStateException("Demo inventory reset is disabled; set program.demo-reset-enabled=true explicitly");
-        }
-        Long programId = programResetExecuteDto.getProgramId();
-        //查出该节目下锁定和已售卖的座位
-        LambdaQueryWrapper<Seat> seatQueryWrapper =
-                Wrappers.lambdaQuery(Seat.class).eq(Seat::getProgramId, programId)
-                        .in(Seat::getSellStatus,SellStatus.LOCK.getCode(),SellStatus.SOLD.getCode());
-        List<Seat> seatList = seatMapper.selectList(seatQueryWrapper);
-        if (CollectionUtil.isNotEmpty(seatList)) {
-            //执行到这里说明有锁定和已售卖的座位，那么就把该节目下的座位都重置一遍
-            LambdaUpdateWrapper<Seat> seatUpdateWrapper =
-                    Wrappers.lambdaUpdate(Seat.class).eq(Seat::getProgramId, programId);
-            Seat seatUpdate = new Seat();
-            seatUpdate.setSellStatus(SellStatus.NO_SOLD.getCode());
-            seatMapper.update(seatUpdate,seatUpdateWrapper);
-        }
-        //查询该节目下的票档
-        LambdaQueryWrapper<TicketCategory> ticketCategoryQueryWrapper =
-                Wrappers.lambdaQuery(TicketCategory.class).eq(TicketCategory::getProgramId, programId);
-        List<TicketCategory> ticketCategories = ticketCategoryMapper.selectList(ticketCategoryQueryWrapper);
-        if (CollectionUtil.isNotEmpty(ticketCategories)) {
-            for (TicketCategory ticketCategory : ticketCategories) {
-                Long remainNumber = ticketCategory.getRemainNumber();
-                Long totalNumber = ticketCategory.getTotalNumber();
-                //如果总数和剩余数不一致，则进行重置
-                if (!(remainNumber.equals(totalNumber))) {
-                    TicketCategory ticketCategoryUpdate = new TicketCategory();
-                    ticketCategoryUpdate.setRemainNumber(totalNumber);
-                    
-                    LambdaUpdateWrapper<TicketCategory> ticketCategoryUpdateWrapper =
-                            Wrappers.lambdaUpdate(TicketCategory.class)
-                                    .eq(TicketCategory::getProgramId, programId)
-                                    .eq(TicketCategory::getId,ticketCategory.getId());
-                    ticketCategoryMapper.update(ticketCategoryUpdate,ticketCategoryUpdateWrapper);
-                }
-            }
-        }
-        //删除缓存相关数据
-        delRedisData(programId);
-        //删除本地缓存数据
-        delLocalCache(programId);
-        return true;
-    }
-    
     public void delRedisData(Long programId){
         Program program = Optional.ofNullable(programMapper.selectById(programId))
                 .orElseThrow(() -> new StellarisFrameException(BaseCode.PROGRAM_NOT_EXIST));
@@ -1017,7 +775,6 @@ public class ProgramService extends ServiceImpl<ProgramMapper, Program> {
         keys.add(RedisKeyBuild.createRedisKey(RedisKeyManage.PROGRAM_TICKET_CATEGORY_LIST, programId));
         keys.add(RedisKeyBuild.createRedisKey(RedisKeyManage.PROGRAM_RECORD, programId));
         keys.add(RedisKeyBuild.createRedisKey(RedisKeyManage.PROGRAM_RECORD_FINISH, programId));
-        keys.add(RedisKeyBuild.createRedisKey(RedisKeyManage.DISCARD_ORDER, programId));
         List<TicketCategory> categories = ticketCategoryMapper.selectList(Wrappers.lambdaQuery(TicketCategory.class)
                 .eq(TicketCategory::getProgramId, programId));
         for (TicketCategory category : categories) {
@@ -1033,6 +790,12 @@ public class ProgramService extends ServiceImpl<ProgramMapper, Program> {
         redisCache.del(keys);
     }
     
+    /**
+     * 与 {@link #getById} 的读锁共用 PROGRAM_LOCK，构成同一把 Redisson 读写锁。
+     * 没有这把写锁时存在如下交错：读线程回源查到旧值 -> 写线程更新数据库并删缓存
+     * -> 读线程把旧值连同 TTL 写回缓存，此后一直脏到过期。
+     */
+    @ServiceLock(lockType = LockType.Write, name = PROGRAM_LOCK, keys = {"#programInvalidDto.id"})
     public Boolean invalid(final ProgramInvalidDto programInvalidDto) {
         Program program = new Program();
         program.setId(programInvalidDto.getId());
@@ -1048,6 +811,17 @@ public class ProgramService extends ServiceImpl<ProgramMapper, Program> {
         }
     }
     
+    /**
+     * 定向失效节目详情缓存：删除 Redis 条目并广播各实例清理本地缓存。
+     * 与 {@link #invalid} 共用 PROGRAM_LOCK 写锁，因此修复期间不会与回源读交错。
+     * 供缓存对账任务在发现缓存与数据库不一致时调用。
+     */
+    @ServiceLock(lockType = LockType.Write, name = PROGRAM_LOCK, keys = {"#programId"})
+    public void evictProgramDetailCache(Long programId) {
+        redisCache.del(RedisKeyBuild.createRedisKey(RedisKeyManage.PROGRAM, programId));
+        redisStreamPushHandler.push(String.valueOf(programId));
+    }
+
     public ProgramVo localDetail(final ProgramGetDto programGetDto) {
         return localCacheProgram.getCache(String.valueOf(programGetDto.getId()));
     }
@@ -1085,40 +859,18 @@ public class ProgramService extends ServiceImpl<ProgramMapper, Program> {
             if (CollectionUtil.isEmpty(categories) || CollectionUtil.isEmpty(seats)) {
                 throw new IllegalStateException("Program ticket categories and full seat snapshot are required");
             }
-            if (seats.stream().anyMatch(seat -> Objects.equals(seat.getSellStatus(), SellStatus.LOCK.getCode()))) {
-                throw new IllegalStateException("Locked seats exist in database; reconcile them before preheat");
-            }
-            Map<Long, Long> availableByCategory = seats.stream()
-                    .filter(seat -> Objects.equals(seat.getSellStatus(), SellStatus.NO_SOLD.getCode()))
-                    .collect(Collectors.groupingBy(Seat::getTicketCategoryId, Collectors.counting()));
-            for (TicketCategory category : categories) {
-                long actualAvailable = availableByCategory.getOrDefault(category.getId(), 0L);
-                if (!Objects.equals(category.getRemainNumber(), actualAvailable)) {
-                    throw new IllegalStateException("Database remain number does not match available seats, categoryId="
-                            + category.getId());
-                }
-            }
-
             // 精确删除本节目缓存键，避免 Cluster 环境下通过 Lua KEYS(pattern) 跨槽扫描。
             List<RedisKeyBuild> cacheKeys = new ArrayList<>();
             cacheKeys.add(RedisKeyBuild.createRedisKey(RedisKeyManage.PROGRAM, programId));
             cacheKeys.add(RedisKeyBuild.createRedisKey(RedisKeyManage.PROGRAM_GROUP, program.getProgramGroupId()));
             cacheKeys.add(RedisKeyBuild.createRedisKey(RedisKeyManage.PROGRAM_SHOW_TIME, programId));
             cacheKeys.add(RedisKeyBuild.createRedisKey(RedisKeyManage.PROGRAM_TICKET_CATEGORY_LIST, programId));
-            for (TicketCategory category : categories) {
-                cacheKeys.add(RedisKeyBuild.createRedisKey(
-                        RedisKeyManage.PROGRAM_SEAT_NO_SOLD_RESOLUTION_HASH, programId, category.getId()));
-                cacheKeys.add(RedisKeyBuild.createRedisKey(
-                        RedisKeyManage.PROGRAM_SEAT_LOCK_RESOLUTION_HASH, programId, category.getId()));
-                cacheKeys.add(RedisKeyBuild.createRedisKey(
-                        RedisKeyManage.PROGRAM_SEAT_SOLD_RESOLUTION_HASH, programId, category.getId()));
-                cacheKeys.add(RedisKeyBuild.createRedisKey(
-                        RedisKeyManage.PROGRAM_TICKET_REMAIN_NUMBER_HASH_RESOLUTION, programId, category.getId()));
-            }
             redisCache.del(cacheKeys);
             delLocalCache(programId);
 
             List<SeatVo> referenceSeats = BeanUtil.copyToList(seats, SeatVo.class);
+            // 节目库只保存布局。首次发布为 AVAILABLE；已发布场次随后由交易库状态覆盖。
+            referenceSeats.forEach(seat -> seat.setSellStatus(com.stellaris.enums.SellStatus.NO_SOLD.getCode()));
             referenceSeatInventoryService.bootstrapFromSnapshot(programId, referenceSeats);
 
             // v5 ready 发布后再回填展示/兼容链路缓存；这些缓存不是 v5 锁座的业务真相。
@@ -1126,13 +878,7 @@ public class ProgramService extends ServiceImpl<ProgramMapper, Program> {
             bloomFilterHandler.add(String.valueOf(programId));
             ProgramGetDto programGetDto = new ProgramGetDto();
             programGetDto.setId(programId);
-            ProgramVo programVo = getDetailV2(programGetDto);
-            Date showDayTime = programVo.getShowDayTime();
-            for (TicketCategory category : categories) {
-                seatService.selectSeatResolution(programId, category.getId(),
-                        DateUtils.countBetweenSecond(DateUtils.now(), showDayTime), TimeUnit.SECONDS);
-                ticketCategoryService.getRedisRemainNumberResolution(programId, category.getId());
-            }
+            getDetailV2(programGetDto);
             completed = true;
             return true;
         } finally {

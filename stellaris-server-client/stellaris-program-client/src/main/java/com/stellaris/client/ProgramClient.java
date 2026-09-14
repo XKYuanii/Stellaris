@@ -23,14 +23,6 @@ import static com.stellaris.constant.Constant.SPRING_INJECT_PREFIX_DISTINCTION_N
 public interface ProgramClient {
     
     /**
-     * 更新座位为锁定和扣减余票数量
-     * @param reduceRemainNumberDto 参数
-     * @return 结果
-     * */
-    @PostMapping("/program/interior/reduce/remain/number")
-    ApiResponse<Boolean> operateSeatLockAndTicketCategoryRemainNumber(ReduceRemainNumberDto reduceRemainNumberDto);
-
-    /**
      * 查询票档集合
      * @param ticketCategoryDto 参数
      * @return 结果
@@ -45,7 +37,7 @@ public interface ProgramClient {
     @PostMapping(value = "/program/all/list")
     ApiResponse<List<Long>> allList();
     
-    /** 支付/取消同时推进数据库库存和 Redis 座位模型。 */
+    /** 权威交易提交后同步 Redis 座位模型。 */
     @PostMapping(value = "/program/interior/reference/reservation/transition")
     ApiResponse<Boolean> operateReferenceReservation(ProgramOperateDataDto programOperateDataDto);
 

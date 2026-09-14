@@ -58,14 +58,4 @@ public class Seat extends BaseTableData implements Serializable {
      */
     private BigDecimal price;
 
-    /**
-     * 1未售卖 2锁定 3已售卖
-     */
-    private Integer sellStatus;
-
-    /** v5 当前预订所有者；用于阻止迟到取消误释放后来订单的座位。 */
-    private String reservationId;
-
-    /** 座位状态 CAS 版本，便于审计和后续乐观锁扩展。 */
-    private Long seatVersion;
 }

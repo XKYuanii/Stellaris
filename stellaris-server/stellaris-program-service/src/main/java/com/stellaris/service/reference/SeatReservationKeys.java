@@ -1,9 +1,12 @@
 package com.stellaris.service.reference;
 
+import com.stellaris.domain.OrderReservationStreamKeys;
+import com.stellaris.domain.OrderReservationRedisKeys;
+
 /** v5/reference 座位键。一个节目所有键使用同一 Hash Tag，满足 Redis Cluster 多键 Lua 约束。 */
 public final class SeatReservationKeys {
     /** 固定少量售卖分片：同一节目仍在一个槽，跨节目可分散热点，Relay 也能有界枚举。 */
-    public static final int SALE_SHARD_COUNT = 16;
+    public static final int SALE_SHARD_COUNT = OrderReservationStreamKeys.SALE_SHARD_COUNT;
 
     private SeatReservationKeys() {
     }
@@ -13,7 +16,7 @@ public final class SeatReservationKeys {
     }
 
     public static int shard(long programId) {
-        return Math.floorMod(programId, SALE_SHARD_COUNT);
+        return OrderReservationStreamKeys.shard(programId);
     }
 
     private static String shardPrefix(int shard) {
@@ -24,39 +27,39 @@ public final class SeatReservationKeys {
     }
 
     public static String meta(long programId) {
-        return prefix(programId) + "meta";
+        return OrderReservationRedisKeys.meta(programId);
     }
 
     public static String available(long programId, long ticketCategoryId) {
-        return prefix(programId) + "available:" + ticketCategoryId;
+        return OrderReservationRedisKeys.available(programId, ticketCategoryId);
     }
 
     public static String owner(long programId) {
-        return prefix(programId) + "owner";
+        return OrderReservationRedisKeys.owner(programId);
     }
 
     public static String reservation(long programId) {
-        return prefix(programId) + "reservation";
+        return OrderReservationRedisKeys.reservation(programId);
     }
 
     public static String accountCount(long programId) {
-        return prefix(programId) + "account-count";
+        return OrderReservationRedisKeys.accountCount(programId);
     }
 
     public static String result(long programId) {
-        return prefix(programId) + "reservation:result";
+        return OrderReservationRedisKeys.result(programId);
     }
 
     public static String sold(long programId) {
-        return prefix(programId) + "sold";
+        return OrderReservationRedisKeys.sold(programId);
     }
 
     public static String finalState(long programId) {
-        return prefix(programId) + "reservation:final";
+        return OrderReservationRedisKeys.finalState(programId);
     }
 
     public static String expiration(long programId) {
-        return prefix(programId) + "reservation:expiration";
+        return OrderReservationRedisKeys.expiration(programId);
     }
 
     /** 单请求短期幂等回执；独立 String Key 可设置 TTL，不参与 MySQL Intent。 */
@@ -80,10 +83,7 @@ public final class SeatReservationKeys {
     }
 
     public static String eventStream(int shard) {
-        return shardPrefix(shard) + "stream";
+        return OrderReservationStreamKeys.stream(shard);
     }
 
-    public static String eventDeadStream(int shard) {
-        return shardPrefix(shard) + "dead-stream";
-    }
 }

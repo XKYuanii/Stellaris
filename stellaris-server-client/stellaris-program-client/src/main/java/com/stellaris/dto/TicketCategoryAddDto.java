@@ -33,9 +33,5 @@ public class TicketCategoryAddDto {
     @NotNull
     private Long totalNumber;
     
-    @Schema(name ="remainNumber", type ="Long", description ="剩余数量",requiredMode= RequiredMode.REQUIRED)
-    @NotNull
-    private Long remainNumber;
-    
     
 }

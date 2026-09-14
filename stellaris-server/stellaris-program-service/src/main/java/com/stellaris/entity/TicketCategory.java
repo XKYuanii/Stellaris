@@ -48,7 +48,5 @@ public class TicketCategory extends BaseTableData implements Serializable {
     /**
      * 剩余数量
      * */
-    private Long remainNumber;
-    
     
 }

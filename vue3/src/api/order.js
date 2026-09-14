@@ -1,37 +1,5 @@
 import request from '@/utils/request'
 
-export function orderCreateV1Api(data) {
-    return request({
-        url: '/stellaris/program/program/order/create/v1',
-        method: 'post',
-        data:data
-    })
-}
-
-export function orderCreateV2Api(data) {
-    return request({
-        url: '/stellaris/program/program/order/create/v2',
-        method: 'post',
-        data:data
-    })
-}
-
-export function orderCreateV3Api(data) {
-    return request({
-        url: '/stellaris/program/program/order/create/v3',
-        method: 'post',
-        data:data
-    })
-}
-
-export function orderCreateV4Api(data) {
-    return request({
-        url: '/stellaris/program/program/order/create/v4',
-        method: 'post',
-        data:data
-    })
-}
-
 export function orderCreateV5Api(data) {
     return request({
         url: '/stellaris/program/program/order/create/v5',
@@ -64,11 +32,11 @@ export function getOrderDetailApi(data) {
     })
 }
 
-export function getOrderCacheApi(data) {
+export function getOrderMaterializationApi(data) {
     return request({
-        url: '/stellaris/order/order/get/cache',
+        url: '/stellaris/order/order/materialization',
         method: 'post',
-        data:data
+        data
     })
 }
 

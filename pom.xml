@@ -27,8 +27,8 @@
 
 	<name>${project.artifactId}</name>
 	<description>
-		Stellaris（星演）票务交易工程化演示系统：基于 Spring Boot、Spring Cloud、Redis、Kafka、MySQL 与 Docker，
-		重点展示订单意图、可靠事件、业务幂等、库存状态机、限流和对账恢复。
+		Stellaris（星演）票务交易工程化演示系统：基于 Spring Boot、Spring Cloud、Redis、MySQL 与 Docker，
+		重点展示原子准入、Stream 可靠消费、业务幂等、本地事务、库存状态机与限流恢复。
 	</description>
 
 	<modules>
@@ -60,6 +60,7 @@
 		<maven-compiler.version>3.8.1</maven-compiler.version>
 		<maven-resources.version>3.2.0</maven-resources.version>
 		<maven-source.version>3.2.1</maven-source.version>
+		<maven-jar.version>3.4.1</maven-jar.version>
 		<flatten-maven.version>1.4.1</flatten-maven.version>
 		<fastjson.version>2.0.9</fastjson.version>
 		<commons-lang.version>2.6</commons-lang.version>
@@ -90,6 +91,8 @@
 		<skywalking.apm-toolkit-trace.version>9.4.0</skywalking.apm-toolkit-trace.version>
 		<skywalking.apm-toolkit-log4j-2.x.version>9.4.0</skywalking.apm-toolkit-log4j-2.x.version>
 		<sa-token.version>1.43.0</sa-token.version>
+		<!-- 1.21.4 keeps the 1.x API while defaulting Docker API negotiation to a Docker 29-compatible level. -->
+		<testcontainers.version>1.21.4</testcontainers.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -99,6 +102,14 @@
 	</dependencies>
 	<dependencyManagement>
 		<dependencies>
+			<!-- Must precede Spring Boot's BOM: Maven keeps the first managed version on conflicts. -->
+			<dependency>
+				<groupId>org.testcontainers</groupId>
+				<artifactId>testcontainers-bom</artifactId>
+				<version>${testcontainers.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
 			<dependency>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-dependencies</artifactId>

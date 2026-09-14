@@ -20,6 +20,10 @@ import java.util.stream.Collectors;
  **/
 @Component
 public class ProgramOrderCreateParamCheckHandler extends AbstractProgramCheckHandler {
+
+    public void validate(ProgramOrderCreateDto programOrderCreateDto) {
+        execute(programOrderCreateDto);
+    }
     
     @Override
     protected void execute(final ProgramOrderCreateDto programOrderCreateDto) {

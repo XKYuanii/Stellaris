@@ -1,6 +1,6 @@
 param(
-    [string]$JMeterBin = 'G:\study\Computer\java\apache-jmeter-5.6.3\apache-jmeter-5.6.3\bin',
-    [string]$Jdk17 = 'C:\Users\X\.jdks\ms-17.0.17',
+    [string]$JMeterBin = "$env:JMETER_HOME\bin",
+    [string]$Jdk17 = $env:JAVA_HOME,
     [switch]$KeepOrders
 )
 

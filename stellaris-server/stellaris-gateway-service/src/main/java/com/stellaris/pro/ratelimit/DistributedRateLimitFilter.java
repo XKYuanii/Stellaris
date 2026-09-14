@@ -10,8 +10,8 @@ import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 import io.micrometer.core.instrument.MeterRegistry;
 
 import java.util.List;
@@ -41,19 +41,21 @@ public class DistributedRateLimitFilter implements GlobalFilter, Ordered {
         String path = exchange.getRequest().getPath().value();
         List<RateLimitRule> matched = properties.getRules().stream()
                 .filter(RateLimitRule::isEnabled).filter(rule -> pathMatcher.match(rule.getPath(), path)).toList();
-        return applyRule(exchange, chain, matched, 0);
-    }
-
-    private Mono<Void> applyRule(ServerWebExchange exchange, GatewayFilterChain chain,
-                                 List<RateLimitRule> rules, int index) {
-        if (index >= rules.size()) return chain.filter(exchange);
-        RateLimitRule rule = rules.get(index);
-        // 当前 RedisCache 是阻塞客户端，必须离开 Netty event-loop；后续可无缝替换为 ReactiveRedisTemplate。
-        return Mono.fromCallable(() -> rateLimiter.check(rule,
-                        dimensionValue(rule.getDimension(), exchange.getRequest())))
-                .subscribeOn(Schedulers.boundedElastic())
-                .flatMap(result -> result.allowed() ? applyRule(exchange, chain, rules, index + 1)
-                        : reject(exchange, result));
+        if (matched.isEmpty()) {
+            return chain.filter(exchange);
+        }
+        ServerHttpRequest request = exchange.getRequest();
+        // 每条规则仍只操作自己的单 key，保持 Redis Cluster 跨槽安全；concatMap 保证
+        // USER -> PROGRAM -> GLOBAL 顺序执行，next() 在第一条拒绝后取消后续规则。
+        return Flux.fromIterable(matched)
+                .concatMap(rule -> rateLimiter.check(rule, dimensionValue(rule.getDimension(), request)))
+                .filter(result -> !result.allowed())
+                .next()
+                // Mono<Void> 成功完成时也是“空”，直接接 switchIfEmpty 会在拒绝后误放行。
+                // 用布尔值标记已经选择的分支，最后再统一转换回 Mono<Void>。
+                .flatMap(result -> reject(exchange, result).thenReturn(Boolean.TRUE))
+                .switchIfEmpty(Mono.defer(() -> chain.filter(exchange).thenReturn(Boolean.FALSE)))
+                .then();
     }
 
     private Mono<Void> reject(ServerWebExchange exchange, RateLimitResult result) {

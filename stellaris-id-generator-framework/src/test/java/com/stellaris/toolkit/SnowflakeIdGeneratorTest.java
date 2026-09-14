@@ -13,36 +13,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SnowflakeIdGeneratorTest {
 
     @Test
-    void orderNumberMustRemainUniqueWhenSequenceRollsToNextMillisecond() {
+    void snowflakeIdMustRemainUniqueWhenSequenceRollsToNextMillisecond() {
         long initialTime = 1_800_000_000_000L;
         ControllableClockGenerator generator = new ControllableClockGenerator(initialTime);
-        Set<Long> orderNumbers = new HashSet<>();
+        Set<Long> ids = new HashSet<>();
 
-        for (int i = 0; i < 1_000; i++) {
-            long userId = 10_000L + i;
-            long orderNumber = generator.getOrderNumber(userId);
-            assertTrue(orderNumbers.add(orderNumber), "订单号不得碰撞");
-            assertEquals(userId & 63L, orderNumber & 63L, "低 6 位必须保留用户路由基因");
+        for (int i = 0; i < 5_000; i++) {
+            assertTrue(ids.add(generator.nextId()), "雪花 ID 不得碰撞");
         }
 
-        assertEquals(initialTime, SnowflakeIdGenerator.parseOrderNumberTimestamp(orderNumbers.stream()
+        assertEquals(initialTime, SnowflakeIdGenerator.parseIdTimestamp(ids.stream()
                 .min(Long::compareTo)
                 .orElseThrow()));
-        assertTrue(orderNumbers.stream()
-                .mapToLong(SnowflakeIdGenerator::parseOrderNumberTimestamp)
+        assertTrue(ids.stream()
+                .mapToLong(SnowflakeIdGenerator::parseIdTimestamp)
                 .max()
                 .orElseThrow() > initialTime, "序列耗尽后必须推进到下一毫秒");
-    }
-
-    @Test
-    @SuppressWarnings("deprecation")
-    void deprecatedCapacityParametersMustRejectInvalidTopology() {
-        SnowflakeIdGenerator generator = new SnowflakeIdGenerator(1L, 1L);
-
-        assertThrows(IllegalArgumentException.class,
-                () -> generator.getOrderNumber(1L, 3L, 2L));
-        assertThrows(IllegalArgumentException.class,
-                () -> generator.getOrderNumber(1L, 16L, 8L));
     }
 
     @Test
@@ -53,10 +39,9 @@ class SnowflakeIdGeneratorTest {
         node.refreshLease(60_000L);
         SnowflakeIdGenerator generator = new SnowflakeIdGenerator(node);
 
-        generator.getOrderNumber(7L);
+        generator.nextId();
         node.invalidateLease();
 
-        assertThrows(IllegalStateException.class, () -> generator.getOrderNumber(7L));
         assertThrows(IllegalStateException.class, generator::nextId);
     }
 

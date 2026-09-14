@@ -44,15 +44,6 @@ spring:
           metadata:
             title: 订单服务
             
-        - id: ${prefix.distinction.name:stellaris}-migrate-service
-          uri: lb://${prefix.distinction.name:stellaris}-migrate-service
-          predicates:
-            - Path=/stellaris/migrate/**
-          filters:
-            - StripPrefix=2
-          metadata:
-            title: 迁移服务    
-
         - id: ${prefix.distinction.name:stellaris}-pay-service
           uri: lb://${prefix.distinction.name:stellaris}-pay-service
           predicates:

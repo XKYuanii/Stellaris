@@ -43,6 +43,12 @@ public class AlipayProperties {
      * 接口内容加密秘钥，对称秘钥
      * */
     private String contentKey;
+
+    /** SDK 建连超时（毫秒），对账线程不能无限占用。 */
+    private int connectTimeout = 2000;
+
+    /** SDK 读取超时（毫秒），应小于 Order 调 Pay 的 Feign 超时。 */
+    private int readTimeout = 5000;
     
     /**
      * 页面跳转同步通知页面路径

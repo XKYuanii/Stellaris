@@ -10,7 +10,8 @@ param(
 $template = Get-Content -Raw -LiteralPath $BodyTemplate
 $results = 1..$Requests | ForEach-Object -Parallel {
     $requestId = [guid]::NewGuid().ToString('N')
-    $body = $using:template.Replace('{{REQUEST_ID}}', $requestId)
+    $templateValue = $using:template
+    $body = $templateValue.Replace('{{REQUEST_ID}}', $requestId)
     $headers = @{ no_verify = 'true' }
     if (-not [string]::IsNullOrWhiteSpace($using:Token)) { $headers.token = $using:Token }
     $watch = [System.Diagnostics.Stopwatch]::StartNew()

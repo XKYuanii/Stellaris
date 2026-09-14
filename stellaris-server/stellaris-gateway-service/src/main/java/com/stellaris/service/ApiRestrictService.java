@@ -12,7 +12,6 @@ import com.stellaris.enums.ApiRuleType;
 import com.stellaris.enums.BaseCode;
 import com.stellaris.enums.RuleTimeUnit;
 import com.stellaris.exception.StellarisFrameException;
-import com.stellaris.kafka.ApiDataMessageSend;
 import com.stellaris.property.GatewayProperty;
 import com.stellaris.redis.RedisCache;
 import com.stellaris.redis.RedisKeyBuild;
@@ -50,9 +49,6 @@ public class ApiRestrictService {
     
     @Autowired
     private GatewayProperty gatewayProperty;
-    
-    @Autowired(required = false)
-    private ApiDataMessageSend apiDataMessageSend;
     
     @Autowired
     private ApiRestrictCacheOperate apiRestrictCacheOperate;
@@ -263,6 +259,7 @@ public class ApiRestrictService {
         apiDataDto.setCallMinuteTime(DateUtils.nowStr(DateUtils.FORMAT_MINUTE));
         apiDataDto.setCallSecondTime(DateUtils.nowStr(DateUtils.FORMAT_SECOND));
         apiDataDto.setType(type);
-        Optional.ofNullable(apiDataMessageSend).ifPresent(send -> send.sendMessage(JSON.toJSONString(apiDataDto)));
+        // 限流命中属于观测事件，写结构化日志交给日志采集系统即可。
+        log.info("gateway_api_limit_event={}", JSON.toJSONString(apiDataDto));
     }
 }

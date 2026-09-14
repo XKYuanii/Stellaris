@@ -1,30 +1,32 @@
 package com.stellaris.pro.ratelimit;
 
-import com.stellaris.redis.RedisCache;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.scripting.support.ResourceScriptSource;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
+import java.util.List;
 
 /** Redis Lua 令牌桶：补充、判断和扣减在一次原子调用中完成。 */
 @Component
 @Slf4j
 public class RedisTokenBucketRateLimiter {
-    private final RedisCache redisCache;
+    private final ReactiveStringRedisTemplate redisTemplate;
     private final MeterRegistry meterRegistry;
     private final LocalTokenBucket localTokenBucket = new LocalTokenBucket();
     private DefaultRedisScript<String> script;
 
-    public RedisTokenBucketRateLimiter(RedisCache redisCache, MeterRegistry meterRegistry) {
-        this.redisCache = redisCache;
+    public RedisTokenBucketRateLimiter(ReactiveStringRedisTemplate redisTemplate, MeterRegistry meterRegistry) {
+        this.redisTemplate = redisTemplate;
         this.meterRegistry = meterRegistry;
     }
 
@@ -35,24 +37,25 @@ public class RedisTokenBucketRateLimiter {
         script.setResultType(String.class);
     }
 
-    public RateLimitResult check(RateLimitRule rule, String dimensionValue) {
+    public Mono<RateLimitResult> check(RateLimitRule rule, String dimensionValue) {
         rule.validate();
         String bucketKey = key(rule, dimensionValue);
-        try {
-            long now = System.currentTimeMillis();
-            long ttlMillis = Math.max(rule.getRefillPeriodMillis(),
-                    ((rule.getCapacity() + rule.getRefillTokens() - 1) / rule.getRefillTokens())
-                            * rule.getRefillPeriodMillis() * 2);
-            String raw = (String) redisCache.getInstance().execute(script, Collections.singletonList(bucketKey),
-                    Long.toString(rule.getCapacity()), Long.toString(rule.getRefillTokens()),
-                    Long.toString(rule.getRefillPeriodMillis()), Long.toString(now), Long.toString(ttlMillis));
-            return parse(raw, rule, false);
-        } catch (Exception exception) {
-            meterRegistry.counter("stellaris_rate_limit_redis_failures_total", "rule", rule.getId(),
-                    "policy", rule.getFailPolicy().name().toLowerCase()).increment();
-            log.warn("Redis rate limiter unavailable for rule {} (policy={})", rule.getId(), rule.getFailPolicy(), exception);
-            return onRedisFailure(bucketKey, rule, dimensionValue);
-        }
+        long now = System.currentTimeMillis();
+        long ttlMillis = Math.max(rule.getRefillPeriodMillis(),
+                ((rule.getCapacity() + rule.getRefillTokens() - 1) / rule.getRefillTokens())
+                        * rule.getRefillPeriodMillis() * 2);
+        List<String> arguments = List.of(Long.toString(rule.getCapacity()), Long.toString(rule.getRefillTokens()),
+                Long.toString(rule.getRefillPeriodMillis()), Long.toString(now), Long.toString(ttlMillis));
+        return redisTemplate.execute(script, Collections.singletonList(bucketKey), arguments)
+                .single()
+                .map(raw -> parse(raw, rule, false))
+                .onErrorResume(exception -> {
+                    meterRegistry.counter("stellaris_rate_limit_redis_failures_total", "rule", rule.getId(),
+                            "policy", rule.getFailPolicy().name().toLowerCase()).increment();
+                    log.warn("Redis rate limiter unavailable for rule {} (policy={})",
+                            rule.getId(), rule.getFailPolicy(), exception);
+                    return Mono.fromSupplier(() -> onRedisFailure(bucketKey, rule, dimensionValue));
+                });
     }
 
     static RateLimitResult parse(String raw, RateLimitRule rule, boolean degraded) {

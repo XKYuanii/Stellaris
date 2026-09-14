@@ -7,8 +7,8 @@
           <div class="login-hero">
             <span class="hero-kicker">STELLARIS TICKETING</span>
             <h1>Stellaris 星演票务</h1>
-            <p>Intent 先行持久化 · Redis Lua 原子锁座 · Outbox 可靠投递</p>
-            <p>至少一次消费 · 状态 CAS 幂等 · 延迟取消与三层对账</p>
+            <p>Redis Lua 原子准入 · Stream 异步落单 · MySQL 本地事务</p>
+            <p>至少一次消费 · 状态 CAS 幂等 · 到期关单与缓存同步</p>
           </div>
         </div>
         <div class="main-right">

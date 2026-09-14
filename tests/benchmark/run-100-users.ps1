@@ -1,6 +1,6 @@
 param(
-    [string]$JMeterBin = 'G:\study\Computer\java\apache-jmeter-5.6.3\apache-jmeter-5.6.3\bin',
-    [string]$JdkHome = 'C:\Users\X\.jdks\ms-17.0.17',
+    [string]$JMeterBin = "$env:JMETER_HOME\bin",
+    [string]$JdkHome = $env:JAVA_HOME,
     [switch]$KeepOrders
 )
 
@@ -11,9 +11,10 @@ $jmeter = Join-Path $JMeterBin 'jmeter.bat'
 $jmx = Join-Path $PSScriptRoot 'v5-100-users.jmx'
 $csv = Join-Path $PSScriptRoot 'users.csv'
 if (-not (Test-Path $jmeter)) { throw "JMeter not found: $jmeter" }
-if (@(Import-Csv $csv).Count -lt 100) { throw 'users.csv needs at least 100 users. Run prepare-benchmark.ps1 first.' }
+if (@(Import-Csv $csv).Count -lt 100) { throw 'users.csv needs at least 100 users.' }
 
-& (Join-Path $PSScriptRoot 'verify-reset.ps1')
+& (Join-Path $PSScriptRoot 'Prepare-StellarisV5Benchmark.ps1')
+if ($LASTEXITCODE -ne 0) { throw 'Benchmark fixture preparation failed' }
 
 $runId = Get-Date -Format 'yyyyMMdd-HHmmss'
 $runDir = Join-Path $PSScriptRoot "results\simple-100-users-$runId"
@@ -83,9 +84,9 @@ try {
     try {
         if ($locationPushed) { Pop-Location }
         if (-not $KeepOrders) {
-            & (Join-Path $PSScriptRoot 'reset-benchmark.ps1') -Mode Normal
+            & (Join-Path $PSScriptRoot 'Cleanup-StellarisV5Benchmark.ps1')
         } else {
-            Write-Warning 'Orders were kept. Run reset-benchmark.ps1 -Mode Normal before the next test.'
+            Write-Warning 'Orders were kept. Run Cleanup-StellarisV5Benchmark.ps1 before the next test.'
         }
     } finally {
         $env:JAVA_HOME = $oldJavaHome

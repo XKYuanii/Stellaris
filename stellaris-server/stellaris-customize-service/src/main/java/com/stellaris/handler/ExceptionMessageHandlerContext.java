@@ -4,7 +4,7 @@ import com.stellaris.enums.BaseCode;
 import com.stellaris.enums.MessageType;
 import com.stellaris.exception.StellarisFrameException;
 import jakarta.annotation.PostConstruct;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
@@ -20,10 +20,13 @@ import java.util.Optional;
 @Component
 public class ExceptionMessageHandlerContext {
 
-    @Autowired
-    private List<ExceptionMessageHandler> exceptionMessageHandlerList;
+    private final List<ExceptionMessageHandler> exceptionMessageHandlerList;
     
     private final Map<MessageType, ExceptionMessageHandler> exceptionMessageHandlerMap = new HashMap<>();
+
+    public ExceptionMessageHandlerContext(ObjectProvider<ExceptionMessageHandler> handlers) {
+        this.exceptionMessageHandlerList = handlers.orderedStream().toList();
+    }
     
     @PostConstruct
     public void init() {
@@ -35,5 +38,9 @@ public class ExceptionMessageHandlerContext {
     public ExceptionMessageHandler getExceptionMessageHandler(MessageType messageType) {
         return Optional.ofNullable(exceptionMessageHandlerMap.get(messageType)).orElseThrow(
                 () -> new StellarisFrameException(BaseCode.MESSAGE_TYPE_NOT_EXIST));
+    }
+
+    public boolean supports(MessageType messageType) {
+        return exceptionMessageHandlerMap.containsKey(messageType);
     }
 }

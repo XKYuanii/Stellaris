@@ -1,7 +1,6 @@
 package com.stellaris.service.composite.impl;
 
 
-import com.stellaris.dto.ProgramGetDto;
 import com.stellaris.dto.ProgramOrderCreateDto;
 import com.stellaris.enums.BaseCode;
 import com.stellaris.enums.BusinessStatus;
@@ -26,22 +25,36 @@ public class ProgramDetailCheckHandler extends AbstractProgramCheckHandler {
     
     @Autowired
     private ProgramService programService;
+
+    public void validate(ProgramOrderCreateDto programOrderCreateDto) {
+        execute(programOrderCreateDto);
+    }
     
     @Override
     protected void execute(final ProgramOrderCreateDto programOrderCreateDto) {
-        ProgramGetDto programGetDto = new ProgramGetDto();
-        programGetDto.setId(programOrderCreateDto.getProgramId());
-        ProgramVo programVo = programService.detailV2(programGetDto);
-        if (programVo.getPermitChooseSeat().equals(BusinessStatus.NO.getCode())) {
-            if (Objects.nonNull(programOrderCreateDto.getSeatDtoList())) {
-                throw new StellarisFrameException(BaseCode.PROGRAM_NOT_ALLOW_CHOOSE_SEAT);
-            }
+        ProgramVo programVo = Optional.ofNullable(
+                        programService.simpleGetProgramAndShowMultipleCache(programOrderCreateDto.getProgramId()))
+                .orElseThrow(() -> new StellarisFrameException(BaseCode.PROGRAM_NOT_EXIST));
+        if (!Objects.equals(programVo.getProgramStatus(), BusinessStatus.YES.getCode())
+                || programVo.getIssueTime() != null && programVo.getIssueTime().after(new java.util.Date())) {
+            throw new StellarisFrameException(BaseCode.PROGRAM_NOT_ON_SALE);
+        }
+        if (programVo.getShowTime() != null && !programVo.getShowTime().after(new java.util.Date())) {
+            throw new StellarisFrameException(BaseCode.PROGRAM_SALE_ENDED);
+        }
+        if (Objects.equals(programVo.getPermitChooseSeat(), BusinessStatus.NO.getCode())
+                && Objects.nonNull(programOrderCreateDto.getSeatDtoList())) {
+            throw new StellarisFrameException(BaseCode.PROGRAM_NOT_ALLOW_CHOOSE_SEAT);
         }
         Integer seatCount = Optional.ofNullable(programOrderCreateDto.getSeatDtoList()).map(List::size).orElse(0);
         Integer ticketCount = Optional.ofNullable(programOrderCreateDto.getTicketCount()).orElse(0);
-        if (seatCount > programVo.getPerOrderLimitPurchaseCount() || ticketCount > programVo.getPerOrderLimitPurchaseCount()) {
+        int requestedCount = seatCount != 0 ? seatCount : ticketCount;
+        if (programVo.getPerOrderLimitPurchaseCount() != null
+                && requestedCount > programVo.getPerOrderLimitPurchaseCount()) {
             throw new StellarisFrameException(BaseCode.PER_ORDER_PURCHASE_COUNT_OVER_LIMIT);
         }
+        programOrderCreateDto.setServerAccountLimit(
+                Optional.ofNullable(programVo.getPerAccountLimitPurchaseCount()).orElse(0));
     }
     
     @Override

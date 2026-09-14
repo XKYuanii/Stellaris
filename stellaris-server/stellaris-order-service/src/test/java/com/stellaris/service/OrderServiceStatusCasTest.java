@@ -40,7 +40,9 @@ class OrderServiceStatusCasTest {
                 .isInstanceOf(StellarisFrameException.class);
 
         verify(ticketMapper, never()).update(any(), any());
-        verify(transitionService, never()).enqueue(any(Long.class), any(Long.class), any());
+        verify(transitionService, never()).enqueue(org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyInt());
     }
 
     private Order order(long orderNumber, OrderStatus status) {
